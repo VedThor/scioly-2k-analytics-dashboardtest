@@ -64,25 +64,26 @@ export function ResourcesHubClient() {
       <section className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
           <div className="min-w-0">
-            <div className="text-xs font-black uppercase text-cyan-300">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
               Team Prep Platform
-            </div>
+            </p>
 
-            <h1 className="mt-2 break-words text-4xl font-black italic uppercase leading-none text-white md:text-6xl">
+            <h1 className="mt-3 break-words text-4xl font-black italic uppercase leading-none text-white md:text-6xl">
               Resources that guide practice
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-400">
               Each event now has an onboarding path, scouting report, resource
-              locker, practice connection, and test bank. This makes the site
-              more useful for team preparation, not just analytics.
+              locker, practice connection, and test bank. The goal is to help
+              new members start faster and help officers see what preparation
+              should happen next.
             </p>
           </div>
 
           <div className="min-w-0 rounded-md border border-court-line bg-court-elevated p-4">
             <label
               htmlFor="event-select"
-              className="text-xs font-black uppercase tracking-wide text-zinc-500"
+              className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500"
             >
               Select Event
             </label>
@@ -124,12 +125,14 @@ export function ResourcesHubClient() {
       </section>
 
       <section className="rounded-md border border-cyan-400/30 bg-cyan-400/10 p-5">
-        <p className="text-xs font-black uppercase tracking-wide text-cyan-300">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
           Current Event
         </p>
+
         <h2 className="mt-2 break-words text-3xl font-black text-white">
           {selectedEvent.name}
         </h2>
+
         <p className="mt-3 max-w-4xl text-sm leading-6 text-zinc-300">
           {selectedEvent.shortDescription}
         </p>
@@ -157,12 +160,14 @@ export function ResourcesHubClient() {
       <section className="rounded-md border border-violet-400/30 bg-violet-400/10 p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-wide text-violet-300">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">
               Practice Queue Preview
             </p>
+
             <h2 className="mt-2 break-words text-2xl font-black text-white">
               Self-quiz connection
             </h2>
+
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
               The practice page turns questions into a small quiz app. Scores,
               weak topics, and recommended resources connect back into this
