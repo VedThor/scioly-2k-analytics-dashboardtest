@@ -1,14 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { PracticeQuiz } from "@/components/prep/PracticeQuiz";
 import { eventPrepData, quizQuestions, quizzes, resources } from "@/lib/prep-data";
 import type { QuizAttempt } from "@/lib/prep-types";
 import { summarizeAttemptsByEvent } from "@/lib/practice-utils";
 
+const PRACTICE_ATTEMPTS_KEY = "scioly-practice-attempts";
+
 export default function PracticePage() {
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const savedAttemptsText = window.localStorage.getItem(PRACTICE_ATTEMPTS_KEY);
+    const savedAttempts: QuizAttempt[] = savedAttemptsText
+      ? JSON.parse(savedAttemptsText)
+      : [];
+
+    setAttempts(savedAttempts);
+    setLoaded(true);
+  }, []);
 
   const summaries = useMemo(
     () => summarizeAttemptsByEvent(attempts),
@@ -16,7 +29,16 @@ export default function PracticePage() {
   );
 
   function handleCompleteAttempt(attempt: QuizAttempt) {
-    setAttempts((currentAttempts) => [attempt, ...currentAttempts]);
+    setAttempts((currentAttempts) => {
+      const nextAttempts = [attempt, ...currentAttempts];
+
+      window.localStorage.setItem(
+        PRACTICE_ATTEMPTS_KEY,
+        JSON.stringify(nextAttempts)
+      );
+
+      return nextAttempts;
+    });
   }
 
   return (
@@ -51,7 +73,7 @@ export default function PracticePage() {
                     Attempts
                   </p>
                   <p className="mt-1 text-2xl font-black text-white">
-                    {attempts.length}
+                    {loaded ? attempts.length : "—"}
                   </p>
                 </div>
 
@@ -60,10 +82,17 @@ export default function PracticePage() {
                     Events
                   </p>
                   <p className="mt-1 text-2xl font-black text-cyan-300">
-                    {summaries.length}
+                    {loaded ? summaries.length : "—"}
                   </p>
                 </div>
               </div>
+
+              <a
+                href="/officer/practice"
+                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-cyan-400/40 bg-cyan-400/10 px-4 py-3 text-sm font-black uppercase tracking-wide text-cyan-300 transition hover:border-cyan-300 hover:bg-cyan-400/20"
+              >
+                View Officer Dashboard
+              </a>
             </div>
           </div>
         </section>
@@ -88,11 +117,15 @@ export default function PracticePage() {
             </div>
 
             <p className="text-sm font-bold text-zinc-500">
-              Local preview for now
+              Saved locally for preview
             </p>
           </div>
 
-          {attempts.length === 0 ? (
+          {!loaded ? (
+            <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/50 p-6 text-center">
+              <p className="font-black text-white">Loading reports...</p>
+            </div>
+          ) : attempts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/50 p-6 text-center">
               <p className="font-black text-white">No reports yet</p>
               <p className="mt-2 text-sm text-zinc-400">
@@ -101,7 +134,7 @@ export default function PracticePage() {
             </div>
           ) : (
             <div className="grid gap-3">
-              {attempts.map((attempt) => (
+              {attempts.slice(0, 5).map((attempt) => (
                 <article
                   key={attempt.id}
                   className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4"
@@ -156,7 +189,9 @@ export default function PracticePage() {
                   key={summary.eventId}
                   className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4"
                 >
-                  <h3 className="font-black text-white">{summary.eventId}</h3>
+                  <h3 className="break-words font-black text-white">
+                    {summary.eventId}
+                  </h3>
 
                   <p className="mt-2 text-sm text-zinc-400">
                     {summary.attempts} attempt
