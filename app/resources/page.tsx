@@ -1,135 +1,186 @@
-import Link from "next/link";
-import { AppShell } from "@/components/layout/AppShell";
-import { OvrBadge } from "@/components/OvrBadge";
-import { StatTile } from "@/components/StatTile";
-import { getCurrentUser } from "@/lib/data";
-import { getFeaturedResources, getResourceStats, resourceAnnouncements, sciolyEvents } from "@/lib/resource-data";
+"use client";
 
-function readinessClass(readiness: string) {
-  if (readiness === "Loaded") return "border-cyan-400/60 bg-cyan-400/10 text-cyan-300";
-  if (readiness === "Building") return "border-fuchsia-400/50 bg-fuchsia-400/10 text-fuchsia-300";
-  return "border-red-400/50 bg-red-400/10 text-red-300";
-}
+import { useMemo, useState } from "react";
 
-export default async function ResourcesPage() {
-  const currentUser = await getCurrentUser();
-  const stats = getResourceStats();
-  const featuredResources = getFeaturedResources();
+import { ResourceLocker } from "@/components/prep/ResourceLocker";
+import { ScoutingReport } from "@/components/prep/ScoutingReport";
+import { StarterPath } from "@/components/prep/StarterPath";
+import { TestBank } from "@/components/prep/TestBank";
+import {
+  eventPrepData,
+  quizQuestions,
+  resources,
+  testBankItems,
+} from "@/lib/prep-data";
+import type { QuizAttempt } from "@/lib/prep-types";
+import {
+  getEventById,
+  getResourcesForEvent,
+  getTestsForEvent,
+} from "@/lib/practice-utils";
+
+const mockAttempts: QuizAttempt[] = [
+  {
+    id: "mock-attempt-1",
+    studentName: "Sample Student",
+    eventId: "designer-genes",
+    quizId: "dg-beginner-quiz",
+    answers: [],
+    score: 3,
+    totalQuestions: 5,
+    percent: 60,
+    weakTopics: ["Pedigrees", "Probability"],
+    completedAt: new Date().toISOString(),
+    timeSpentSeconds: 520,
+  },
+];
+
+export default function ResourcesPage() {
+  const [selectedEventId, setSelectedEventId] = useState(eventPrepData[0].id);
+
+  const selectedEvent = useMemo(
+    () => getEventById({ eventId: selectedEventId, events: eventPrepData }),
+    [selectedEventId]
+  );
+
+  const eventResources = useMemo(
+    () => getResourcesForEvent({ eventId: selectedEvent.id, resources }),
+    [selectedEvent.id]
+  );
+
+  const eventTests = useMemo(
+    () => getTestsForEvent({ eventId: selectedEvent.id, tests: testBankItems }),
+    [selectedEvent.id]
+  );
+
+  const eventQuestions = useMemo(
+    () =>
+      quizQuestions.filter((question) => question.eventId === selectedEvent.id),
+    [selectedEvent.id]
+  );
 
   return (
-    <AppShell currentUser={currentUser}>
-      <div className="space-y-6">
-        <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-          <div className="rounded-md border border-court-line bg-court-panel p-5 shadow-panel md:p-6">
-            <div className="max-w-4xl">
-              <div className="text-xs font-black uppercase tracking-wide text-cyan-300">Resource Command Center</div>
-              <h1 className="mt-2 text-4xl font-black italic uppercase leading-none text-white md:text-6xl">
-                Event Hubs
+    <main className="min-h-screen overflow-x-hidden bg-black px-4 py-6 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl shadow-black/30 sm:p-6">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                Team Prep Platform
+              </p>
+
+              <h1 className="mt-3 break-words text-4xl font-black tracking-tight text-white sm:text-5xl">
+                Resources that actually guide practice.
               </h1>
-              <p className="mt-4 max-w-3xl text-base text-zinc-400">
-                Organize prep the way SciOly actually works: by event. Each hub holds starter paths, recommended
-                resources, topic maps, practice questions, and test banks.
+
+              <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-400">
+                Each event now has an onboarding path, scouting report, resource
+                locker, practice connection, and test bank. The goal is to help
+                new members start faster and help officers see what preparation
+                should happen next.
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-4">
-              <StatTile label="Resource OVR" value={<OvrBadge value={stats.averageResourceOvr} size="sm" showTier />} />
-              <StatTile label="Event Hubs" value={stats.events} detail="Active modules" />
-              <StatTile label="Resources" value={stats.resources} detail="Curated items" />
-              <StatTile label="Practice Items" value={stats.questions + stats.tests} detail="Questions + tests" />
-            </div>
+            <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <label
+                htmlFor="event-select"
+                className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500"
+              >
+                Select Event
+              </label>
 
-            <div className="mt-4 rounded-md border border-court-line bg-court-elevated p-4">
-              <div className="text-xs font-black uppercase text-zinc-500">Current Resource Formula</div>
-              <div className="mt-2 text-sm font-bold text-zinc-200">
-                Resource OVR = starter clarity + resource coverage + practice depth + test readiness
-              </div>
-              <div className="mt-2 text-sm text-zinc-400">
-                Weak event pages should be treated like weak roster positions: identify gaps, assign ownership, and
-                upload the highest-leverage material first.
-              </div>
-            </div>
-          </div>
+              <select
+                id="event-select"
+                value={selectedEventId}
+                onChange={(event) => setSelectedEventId(event.target.value)}
+                className="mt-3 w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm font-bold text-white outline-none ring-cyan-400/40 focus:ring-4"
+              >
+                {eventPrepData.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.name}
+                  </option>
+                ))}
+              </select>
 
-          <div className="rounded-md border border-court-line bg-court-panel p-5">
-            <div className="text-xs font-black uppercase text-cyan-300">Quick Find</div>
-            <h2 className="mt-2 text-2xl font-black italic uppercase text-white">Search Board</h2>
-            <div className="mt-4 rounded-md border border-court-line bg-court-elevated px-4 py-3 text-sm font-bold text-zinc-500">
-              Search events, topics, tests, or resources...
-            </div>
-            <div className="mt-5 space-y-3">
-              {resourceAnnouncements.map((item) => (
-                <div key={item.title} className="rounded-md border border-court-line bg-court-elevated p-4">
-                  <div className="text-[11px] font-black uppercase text-cyan-300">{item.label}</div>
-                  <div className="mt-1 text-sm font-black text-white">{item.title}</div>
-                  <p className="mt-2 text-sm text-zinc-400">{item.body}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-zinc-800 bg-black p-3">
+                  <p className="text-xs font-bold uppercase text-zinc-500">
+                    Category
+                  </p>
+                  <p className="mt-1 font-black text-cyan-300">
+                    {selectedEvent.category}
+                  </p>
                 </div>
-              ))}
+
+                <div className="rounded-2xl border border-zinc-800 bg-black p-3">
+                  <p className="text-xs font-bold uppercase text-zinc-500">
+                    Event Lead
+                  </p>
+                  <p className="mt-1 truncate font-black text-white">
+                    {selectedEvent.eventLead}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="text-xs font-black uppercase tracking-wide text-cyan-300">Main Board</div>
-              <h2 className="mt-2 text-3xl font-black italic uppercase text-white">All Event Hubs</h2>
-            </div>
-            <div className="text-xs font-black uppercase text-zinc-500">Click any card for the event deep dive</div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {sciolyEvents.map((event) => (
-              <Link
-                key={event.slug}
-                href={`/resources/${event.slug}`}
-                className="group rounded-md border border-court-line bg-court-elevated p-5 transition hover:-translate-y-0.5 hover:border-cyan-400/70 hover:shadow-opal"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-[11px] font-black uppercase text-zinc-500">{event.category}</div>
-                    <h3 className="mt-2 text-2xl font-black italic uppercase leading-none text-white">{event.name}</h3>
-                  </div>
-                  <OvrBadge value={event.resourceOvr} size="sm" />
-                </div>
-                <p className="mt-4 text-sm leading-6 text-zinc-400">{event.tagline}</p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className={`rounded-md border px-2.5 py-1 text-[11px] font-black uppercase ${readinessClass(event.readiness)}`}>
-                    {event.readiness}
-                  </span>
-                  <span className="rounded-md border border-court-line bg-black px-2.5 py-1 text-[11px] font-black uppercase text-zinc-400">
-                    {event.resources.length} Resources
-                  </span>
-                  <span className="rounded-md border border-court-line bg-black px-2.5 py-1 text-[11px] font-black uppercase text-zinc-400">
-                    {event.questions.length + event.tests.length} Practice
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <section className="rounded-3xl border border-cyan-400/30 bg-cyan-400/10 p-5">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
+            Current Event
+          </p>
+          <h2 className="mt-2 text-3xl font-black text-white">
+            {selectedEvent.name}
+          </h2>
+          <p className="mt-3 max-w-4xl text-sm leading-6 text-zinc-300">
+            {selectedEvent.shortDescription}
+          </p>
         </section>
 
-        <section className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
-          <div className="text-xs font-black uppercase tracking-wide text-cyan-300">Recommended</div>
-          <h2 className="mt-2 text-3xl font-black italic uppercase text-white">Featured Resources</h2>
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            {featuredResources.map((resource) => (
-              <Link
-                key={`${resource.eventSlug}-${resource.title}`}
-                href={`/resources/${resource.eventSlug}`}
-                className="rounded-md border border-court-line bg-court-elevated p-4 transition hover:border-fuchsia-400/70"
-              >
-                <div className="text-[11px] font-black uppercase text-cyan-300">{resource.eventName}</div>
-                <div className="mt-2 text-lg font-black text-white">{resource.title}</div>
-                <p className="mt-2 text-sm leading-6 text-zinc-400">{resource.description}</p>
-                <div className="mt-3 text-[11px] font-black uppercase text-zinc-500">
-                  {resource.type} / {resource.topic} / {resource.difficulty}
-                </div>
-              </Link>
-            ))}
+        <StarterPath
+          steps={selectedEvent.starterPath}
+          resources={eventResources}
+          tests={eventTests}
+        />
+
+        <ScoutingReport
+          report={selectedEvent.scoutingReport}
+          eventId={selectedEvent.id}
+          attempts={mockAttempts}
+          questions={eventQuestions}
+          resources={eventResources}
+        />
+
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <ResourceLocker resources={eventResources} />
+          <TestBank tests={eventTests} />
+        </div>
+
+        <section className="rounded-3xl border border-violet-400/30 bg-violet-400/10 p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">
+                Practice Queue Preview
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Self-quiz connection coming next
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
+                The next page will turn questions into a small quiz app. Scores,
+                weak topics, and recommended resources will connect back into
+                this scouting report.
+              </p>
+            </div>
+
+            <a
+              href="/practice"
+              className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-violet-300 px-5 py-3 text-sm font-black uppercase tracking-wide text-black transition hover:bg-white"
+            >
+              Open Practice
+            </a>
           </div>
         </section>
       </div>
-    </AppShell>
+    </main>
   );
 }
