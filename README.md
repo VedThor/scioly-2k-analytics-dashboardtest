@@ -1,101 +1,99 @@
-# SciOly 2K Analytics Dashboard
+# SciOly Tracker
 
-Local implementation of the SciOly 2K Analytics Dashboard for **Obra D Tompkins High School**.
+Full-stack Science Olympiad team analytics for Obra D Tompkins High School. The app tracks competition results, testoffs, practice points, player and event rankings, A/B/C rosters, approvals, and an admin audit trail.
 
-## What Is Included
+## Stack
 
-- Next.js 15 App Router with TypeScript
-- Tailwind 2K-style dark UI with tier-colored OVR badges
-- Dashboard leaderboard with sortable roster columns and player deep-dive modal
-- Profile pages with stat grid, deltas, event breakdowns, competition history, point history, and Recharts trends
-- Explicit up/down trend arrows for OVR, points, and placement direction
-- Quick-add point logging with the specified point formulas
-- Officer approval queue
-- Duosmium CSV tournament upload with medal detection, event participants, and manual admin dumps
-- Scio.ly-style Elo/SOS calculation hooks with national/equivalent benchmark comparison
-- Admin drag-and-drop roster editor
-- Team comparison page
-- Audit log page
-- API routes for point logs, approvals, tournament import, CSV export, and weekly snapshots
-- Supabase schema with RLS, triggers, OVR recalculation, rate limiting, snapshots, and team OVR updates
+- Next.js 15 and TypeScript
+- Vercel Functions and weekly Vercel Cron snapshots
+- Supabase Postgres, Auth, and Row Level Security
+- Tailwind CSS and Recharts
 
-## Run Locally
+GitHub Pages is no longer the production target because a static deployment cannot run authentication, API routes, imports, or database writes.
+
+## Local development
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Development runs with demo data when Supabase variables are absent. Production fails closed unless Supabase is configured or `ENABLE_DEMO_MODE=true` is deliberately set.
 
-The app runs in demo mode without environment variables. Add real credentials in `.env.local` when you are ready to persist to Supabase.
+## 1. Create the Supabase backend
 
-## GitHub Pages
+1. Create a Supabase project, either directly or from **Vercel → Project → Storage → Create Database → Supabase**.
+2. Open the Supabase SQL editor.
+3. Run the complete [`supabase/schema.sql`](supabase/schema.sql) file once.
+4. In Supabase Auth URL settings, set:
+   - Site URL: `https://sciolytracker.com`
+   - Redirect URL: `https://sciolytracker.com/auth/callback`
+   - Also add `https://YOUR-PROJECT.vercel.app/auth/callback` and any Vercel preview callback URL you use while setting up.
+5. Enable email confirmation. Google OAuth is optional; email/password works without it.
 
-This repo can be hosted as a static GitHub Pages site.
+The schema bootstraps `aaravsinhaofficial@gmail.com` as an admin. If the admin email changes, update both Vercel's `DEFAULT_ADMIN_EMAILS` variable and the Supabase setting:
+
+```sql
+update public.system_settings
+set value = '["new-admin@example.com"]'::jsonb
+where key = 'default_admin_emails';
+```
+
+For the first deployment, temporarily set `ALLOW_PUBLIC_SIGNUP=true`, create the administrator account at the initial Vercel URL, then immediately set it back to `false` and redeploy. Before attaching the public domain, also disable new-user signup in Supabase Auth. Add future team members from the Supabase Auth dashboard so existing users can still sign in while outsiders cannot create accounts.
+
+## 2. Deploy from GitHub to Vercel
+
+1. In Vercel, choose **Add New → Project**.
+2. Import `aaravsinhaofficial/scioly-2k-analytics-dashboard`.
+3. Keep these project settings:
+   - Framework Preset: `Next.js`
+   - Root Directory: `./`
+   - Install Command: `npm ci`
+   - Build Command: `npm run build`
+   - Output Directory: leave blank
+   - Node.js: `22.x`
+4. Do **not** set `NEXT_OUTPUT` or `NEXT_PUBLIC_BASE_PATH`; those were only for GitHub Pages.
+5. Add the environment variables below to Production and Preview, then deploy. Set `APP_URL` only in Production; leave it unset in Preview so each preview deployment uses its own callback origin.
+
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key; keep secret |
+| `APP_URL` | Production only: `https://sciolytracker.com`; omit in Preview |
+| `DEFAULT_ADMIN_EMAILS` | `aaravsinhaofficial@gmail.com` |
+| `ALLOW_PUBLIC_SIGNUP` | `false` after the first administrator account is created |
+| `CRON_SECRET` | A random 64-character secret |
+| `NEXT_PUBLIC_SCHOOL_NAME` | `Obra D Tompkins High School` |
+| `TRACKED_SCHOOL_ALIASES` | `Tompkins High School,Tompkins HS` |
+| `ENABLE_DEMO_MODE` | `false` |
+| `SCIOLY_ELO_ENDPOINT` | Optional external Elo endpoint; omit initially |
+
+Generate the cron secret locally with:
 
 ```bash
-npm run build:pages
+openssl rand -hex 32
 ```
 
-The static site is generated in `out/`. The included workflow at `.github/workflows/pages.yml` deploys that folder automatically when you push to `main`.
+The committed `vercel.json` schedules weekly OVR snapshots. Vercel automatically supplies `CRON_SECRET` to the scheduled request.
 
-For a normal project Pages URL like `https://USER.github.io/REPO/`, the workflow infers the correct base path from the repo name. If you use a custom domain or a `USER.github.io` repo, set `NEXT_PUBLIC_BASE_PATH` to an empty string in the workflow or repository variables.
+## 3. Connect sciolytracker.com from GoDaddy
 
-GitHub Pages cannot execute server routes, so hosted point approvals, point submission, and tournament import run as static demo interactions. Deploy to Vercel or another Node-capable host with Supabase credentials when you need persistent writes, cron snapshots, Google sign-in, or auth-backed role enforcement.
+First add both `sciolytracker.com` and `www.sciolytracker.com` under **Vercel Project → Settings → Domains**. Then replace the GoDaddy Website Builder records with:
 
-## Environment Variables
+| Type | Name | Value | TTL |
+| --- | --- | --- | --- |
+| `A` | `@` | `76.76.21.21` | 1 hour |
+| `CNAME` | `www` | `cname.vercel-dns-0.com` | 1 hour |
 
-Copy `.env.example` to `.env.local` and fill in:
+If Vercel displays a project-specific `*.vercel-dns-*.com` CNAME, use the exact value Vercel displays instead. Remove the existing `A @ → WebsiteBuilder Site` record and any old `www` Website Builder CNAME. Do not remove GoDaddy nameservers, MX records, or unrelated TXT records. Add a Vercel TXT verification record only if the Vercel Domains screen asks for it.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-DEFAULT_ADMIN_EMAILS=aarav@example.com,aaravsinhaofficial@gmail.com
-CRON_SECRET=
-NEXT_PUBLIC_SCHOOL_NAME="Obra D Tompkins High School"
-SCIOLY_ELO_ENDPOINT=
-```
+Set `sciolytracker.com` as the primary production domain and redirect `www.sciolytracker.com` to it. Vercel provisions HTTPS automatically after DNS validates.
 
-## Supabase Setup
+## Operational workflow
 
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
-3. Enable email/password auth and email verification. Enable Google as an OAuth provider if you want the "Continue with Google" button to work.
-4. In Supabase Auth URL settings, add your deployed Vercel URL and local dev URL:
-   - `http://localhost:3000`
-   - `https://YOUR-VERCEL-PROJECT.vercel.app`
-5. Add redirect URLs for auth callbacks:
-   - `http://localhost:3000/auth/callback`
-   - `https://YOUR-VERCEL-PROJECT.vercel.app/auth/callback`
-6. Add the Supabase variables to `.env.local`.
-7. Deploy to Vercel and add the same environment variables there.
-
-## Accounts And Roles
-
-- `/signup` creates a Supabase Auth user.
-- New users are inserted into `students` automatically by the `handle_new_auth_user` database trigger.
-- New accounts default to `viewer`, `60` OVR, and `0` points, except emails in `DEFAULT_ADMIN_EMAILS`.
-- `/login` signs users in with email/password.
-- `/reset-password` sends reset emails and lets signed-in recovery sessions set a new password.
-- The app falls back to demo mode only when Supabase env vars are missing.
-
-Admins can promote users, edit grades, and manage listed events from `/admin/manage`.
-
-## Production Notes
-
-- Aarav Sinha is the default demo admin. In production, set `DEFAULT_ADMIN_EMAILS` and the matching Supabase `default_admin_emails` system setting to the real Google email that should bootstrap as admin.
-- The snapshot endpoint is `POST /api/cron/snapshots` with `Authorization: Bearer <CRON_SECRET>`.
-- Tournament imports preview safely in demo mode. With Supabase credentials, commit writes tournaments, events, new students, performances, participation points, medals, and audit entries.
-- `SCIOLY_ELO_ENDPOINT` is optional. Without it, the app uses a local fallback Elo map and defaults unknown schools to 1000.
-
-## Rating Formula
-
-Placement score now uses benchmark-relative competition difficulty:
-
-```text
-Placement Score = (100 - rank) x SOS x Benchmark Relative Difficulty
-```
-
-If a known national benchmark school is in the tournament field, the tournament is compared directly against that school. If not, the importer keeps comparing the field Elo against equivalent benchmark schools until it finds the closest benchmark tier. Placement deltas are inverted: rank going down is green because it means better placement, while rank going up is red.
+- Students submit practice logs; officers approve or reject them.
+- Officers import Tompkins tournament results from CSV or enter testoff sessions and scores.
+- Testoff rankings normalize raw score by the session maximum and weight.
+- Admins manage accounts, roles, A/B/C rosters, custom point categories, and audit reversals.
+- Competition imports retain the full field for strength-of-schedule calculations but credit only schools matching the configured Tompkins aliases.

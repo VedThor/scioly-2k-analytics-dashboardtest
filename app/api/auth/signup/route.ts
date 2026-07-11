@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
-import { ensureStudentProfile } from "@/lib/auth";
+import { getAppOrigin } from "@/lib/app-url";
+import { ensureStudentProfile, publicSignupEnabled } from "@/lib/auth";
 import { validatePassword } from "@/lib/password";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (!publicSignupEnabled()) {
+    return NextResponse.json(
+      { ok: false, error: "New accounts are invite-only. Ask a team administrator for access." },
+      { status: 403 }
+    );
+  }
+
   if (!hasSupabaseConfig()) {
     return NextResponse.json(
       { ok: false, error: "Supabase is not configured for this deployment." },
@@ -46,7 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase is not configured." }, { status: 503 });
   }
 
-  const origin = request.headers.get("origin") ?? new URL(request.url).origin;
+  const origin = getAppOrigin(request);
   const { data, error } = await supabase.auth.signUp({
     email,
     password,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
-import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
-  const currentUser = (await getAuthenticatedStudent()) ?? (!hasSupabaseConfig() ? getCurrentDemoUser() : null);
+  const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
   if (!currentUser) {
     return NextResponse.json({ ok: false, error: "Sign in before reviewing points." }, { status: 401 });
@@ -33,7 +33,20 @@ export async function PATCH(request: Request) {
   }
 
   if (supabase) {
-    const { data: before } = await supabase.from("grind_points").select("*").eq("id", body.id).maybeSingle();
+    const { data: before, error: loadError } = await supabase
+      .from("grind_points")
+      .select("*")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (loadError || !before) {
+      return NextResponse.json(
+        { ok: false, error: loadError?.message ?? "Point log not found." },
+        { status: 404 }
+      );
+    }
+    if (before.status !== "pending") {
+      return NextResponse.json({ ok: false, error: "This point log has already been reviewed." }, { status: 409 });
+    }
     const { error } = await supabase
       .from("grind_points")
       .update({

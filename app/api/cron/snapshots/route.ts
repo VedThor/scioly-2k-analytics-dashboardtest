@@ -1,30 +1,34 @@
 import { NextResponse } from "next/server";
 import { mockStudents } from "@/lib/seed";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ ok: false, error: "Unauthorized cron request." }, { status: 401 });
-    }
+  if (hasSupabaseConfig() && !secret) {
+    return NextResponse.json({ ok: false, error: "CRON_SECRET is not configured." }, { status: 503 });
+  }
+
+  const auth = request.headers.get("authorization");
+  if (secret && auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false, error: "Unauthorized cron request." }, { status: 401 });
   }
 
   const supabase = getSupabaseAdmin();
+  let studentsProcessed = mockStudents.length;
   if (supabase) {
-    const { error } = await supabase.rpc("create_weekly_ovr_snapshots");
+    const { data, error } = await supabase.rpc("create_weekly_ovr_snapshots");
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
+    studentsProcessed = typeof data === "number" ? data : 0;
   }
 
   return NextResponse.json({
     ok: true,
     message: supabase ? "Weekly snapshots created." : "Demo snapshot job completed.",
-    studentsProcessed: mockStudents.length
+    studentsProcessed
   });
 }
 

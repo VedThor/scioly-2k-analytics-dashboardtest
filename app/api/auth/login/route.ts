@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     message: "Signed in.",
-    redirectTo: body.next?.startsWith("/") ? body.next : "/dashboard"
+    redirectTo: safeInternalPath(body.next)
   });
 }

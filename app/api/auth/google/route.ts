@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAppOrigin, safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Auth client unavailable." }, { status: 500 });
   }
 
-  const origin = new URL(request.url).origin;
-  const next = body.next?.startsWith("/") ? body.next : "/dashboard";
+  const origin = getAppOrigin(request);
+  const next = safeInternalPath(body.next);
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",

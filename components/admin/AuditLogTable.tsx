@@ -33,26 +33,7 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
         setMessage(payload?.message ?? "Audit action reversed.");
         router.refresh();
       } catch (caught) {
-        const fallback = caught instanceof Error ? caught.message : "Static demo: reversal staged locally.";
-        const now = new Date().toISOString();
-        setRows((current) => [
-          {
-            id: Math.max(...current.map((entry) => entry.id)) + 1,
-            actorId: currentUser.id,
-            actorName: currentUser.name,
-            action: "audit.undo",
-            target: log.target,
-            reason: fallback.includes("fetch") ? "Static demo reversal" : fallback,
-            ipAddress: "local",
-            reversalOf: log.id,
-            isReversible: false,
-            createdAt: now
-          },
-          ...current.map((entry) =>
-            entry.id === log.id ? { ...entry, isReversed: true, reversedAt: now, reversedBy: currentUser.id } : entry
-          )
-        ]);
-        setMessage(fallback.includes("fetch") ? "Static demo: reversal staged locally." : fallback);
+        setMessage(caught instanceof Error ? caught.message : "Could not reverse this audit entry.");
       } finally {
         setUndoingId(null);
       }

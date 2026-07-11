@@ -14,8 +14,7 @@ export default async function ApprovePage() {
             Point Approval
           </h1>
           <p className="mt-3 max-w-3xl text-zinc-400">
-            Approvals trigger point totals, OVR recalculation, notifications, and audit records when connected to
-            Supabase.
+            Approvals update point totals, recalculate OVR, and write a reviewable audit record.
           </p>
         </section>
         <ApprovalQueue queue={queue} />

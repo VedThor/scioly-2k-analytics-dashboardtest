@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ type EmailOtpType = "signup" | "invite" | "magiclink" | "recovery" | "email_chan
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const next = url.searchParams.get("next")?.startsWith("/") ? url.searchParams.get("next")! : "/dashboard";
+  const next = safeInternalPath(url.searchParams.get("next"));
 
   if (!hasSupabaseConfig()) {
     return NextResponse.redirect(new URL("/login", request.url));

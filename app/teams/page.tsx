@@ -14,7 +14,7 @@ export default async function TeamsPage() {
             Rosters Side by Side
           </h1>
           <p className="mt-3 max-w-3xl text-zinc-400">
-            Team OVR uses the top 15 member ratings with 60 OVR baseline slots for open roster spots.
+            Team OVR averages the top 15 assigned member ratings and updates whenever results, points, or rosters change.
           </p>
         </section>
         <TeamComparisonView teams={teams} />

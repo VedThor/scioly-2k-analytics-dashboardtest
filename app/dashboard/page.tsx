@@ -20,7 +20,7 @@ export default async function DashboardPage() {
         <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
           <div className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
             <div className="max-w-3xl">
-              <div className="text-xs font-black uppercase text-cyan-300">Obra D Tompkins High School</div>
+              <div className="text-xs font-black uppercase text-cyan-300">{schoolName}</div>
               <h1 className="mt-2 text-4xl font-black italic uppercase leading-none text-white md:text-6xl">
                 Analytics Dashboard
               </h1>

@@ -16,8 +16,8 @@ export default async function ManagePage() {
             Roster Management
           </h1>
           <p className="mt-3 max-w-3xl text-zinc-400">
-            Move students between A, B, and C teams. Production saves use optimistic versioning and write every change
-            to the audit log.
+            Move students between A, B, and C teams. Each save replaces the team assignments atomically and writes the
+            change to the audit log.
           </p>
         </section>
         <RosterManager rosters={rosters} />

@@ -1,9 +1,48 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
-import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
+  if (!currentUser) {
+    return NextResponse.json({ ok: false, error: "Sign in before loading point categories." }, { status: 401 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: true, categories: [] },
+      { headers: { "cache-control": "private, no-store" } }
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("custom_point_categories")
+    .select("id,name,default_points,max_points,is_active")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+      categories: (data ?? []).map((category) => ({
+        id: Number(category.id),
+        name: category.name,
+        defaultPoints: Number(category.default_points),
+        maxPoints: Number(category.max_points),
+        isActive: Boolean(category.is_active)
+      }))
+    },
+    { headers: { "cache-control": "private, no-store" } }
+  );
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -11,7 +50,7 @@ export async function POST(request: Request) {
     defaultPoints?: number;
     maxPoints?: number;
   };
-  const currentUser = (await getAuthenticatedStudent()) ?? (!hasSupabaseConfig() ? getCurrentDemoUser() : null);
+  const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
   if (!currentUser) {
     return NextResponse.json({ ok: false, error: "Sign in before creating categories." }, { status: 401 });

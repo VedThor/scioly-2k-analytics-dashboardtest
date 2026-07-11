@@ -23,8 +23,7 @@ export function CustomCategoryManager() {
         if (!response.ok) throw new Error(payload?.error ?? "Could not create category.");
         setMessage(payload?.message ?? "Category created.");
       } catch (caught) {
-        const fallback = caught instanceof Error ? caught.message : "Static demo: category staged locally.";
-        setMessage(fallback.includes("fetch") ? "Static demo: category staged locally." : fallback);
+        setMessage(caught instanceof Error ? caught.message : "Could not create category.");
       }
     });
   }

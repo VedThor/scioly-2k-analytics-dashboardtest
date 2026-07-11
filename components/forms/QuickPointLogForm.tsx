@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2, PlusCircle } from "lucide-react";
 import { activityHelp, activityLabels, calculateActivityPoints } from "@/lib/activity";
-import type { ActivityType, Student } from "@/lib/types";
+import type { ActivityType, CustomPointCategory, Student } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 
 interface QuickPointLogFormProps {
@@ -18,13 +18,66 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   const [quantity, setQuantity] = useState(50);
   const [customPoints, setCustomPoints] = useState(75);
   const [customLabel, setCustomLabel] = useState("Custom Practice");
+  const [customCategories, setCustomCategories] = useState<CustomPointCategory[]>([]);
+  const [customCategoryId, setCustomCategoryId] = useState<number | undefined>();
+  const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const points = useMemo(
+  const calculatedPoints = useMemo(
     () => calculateActivityPoints({ activityType, minutes, quantity, customPoints }),
     [activityType, customPoints, minutes, quantity]
   );
+  const selectedCategory = customCategories.find((category) => category.id === customCategoryId);
+  const points =
+    activityType === "custom_activity" && selectedCategory
+      ? Math.min(calculatedPoints, selectedCategory.maxPoints)
+      : calculatedPoints;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/admin/custom-categories", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; categories?: CustomPointCategory[]; error?: string }
+          | null;
+        if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Could not load point categories.");
+        if (cancelled) return;
+        const categories = payload.categories ?? [];
+        setCustomCategories(categories);
+        const first = categories[0];
+        if (first) {
+          setCustomCategoryId(first.id);
+          setCustomLabel(first.name);
+          setCustomPoints(first.defaultPoints);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setCategoryLoadError(caught instanceof Error ? caught.message : "Could not load point categories.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function chooseCustomCategory(value: string) {
+    if (value === "other") {
+      setCustomCategoryId(undefined);
+      setCustomLabel("Custom Practice");
+      setCustomPoints(75);
+      return;
+    }
+
+    const category = customCategories.find((entry) => entry.id === Number(value));
+    if (!category) return;
+    setCustomCategoryId(category.id);
+    setCustomLabel(category.name);
+    setCustomPoints(category.defaultPoints);
+  }
 
   function submit() {
     setMessage(null);
@@ -39,20 +92,18 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             minutes,
             quantity,
             customPoints,
-            customLabel: activityType === "custom_activity" ? customLabel : undefined
+            customLabel: activityType === "custom_activity" ? customLabel : undefined,
+            customCategoryId: activityType === "custom_activity" ? customCategoryId : undefined
           })
         });
 
-        if (!response.ok) {
-          throw new Error("Point API unavailable");
-        }
-
         const payload = (await response.json()) as { ok: boolean; message?: string; error?: string };
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error ?? "Could not submit point log.");
+        }
         setMessage(payload.message ?? payload.error ?? "Point log submitted.");
-      } catch {
-        setMessage(
-          `Static demo: ${points} points staged locally. Deploy with Supabase or Vercel-style APIs to persist approvals.`
-        );
+      } catch (caught) {
+        setMessage(caught instanceof Error ? caught.message : "Could not submit point log.");
       }
     });
   }
@@ -113,14 +164,38 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         ) : null}
 
         {activityType === "custom_activity" ? (
-          <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
-            Category Name
-            <input
-              value={customLabel}
-              onChange={(event) => setCustomLabel(event.target.value)}
-              className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
-            />
-          </label>
+          <>
+            <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+              Point Category
+              <select
+                value={customCategoryId ?? "other"}
+                onChange={(event) => chooseCustomCategory(event.target.value)}
+                className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+              >
+                {customCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+                <option value="other">Other / one-time activity</option>
+              </select>
+            </label>
+            {selectedCategory ? (
+              <div className="rounded-md border border-court-line bg-court-elevated p-3 text-xs text-zinc-400">
+                Default {selectedCategory.defaultPoints} points · maximum {selectedCategory.maxPoints} points
+              </div>
+            ) : (
+              <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+                Category Name
+                <input
+                  value={customLabel}
+                  onChange={(event) => setCustomLabel(event.target.value)}
+                  className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+                />
+              </label>
+            )}
+            {categoryLoadError ? <div className="text-xs text-amber-200">{categoryLoadError}</div> : null}
+          </>
         ) : null}
 
         {activityType === "build_testing" || activityType === "custom_activity" ? (
@@ -129,6 +204,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             <input
               type="number"
               min={0}
+              max={activityType === "custom_activity" ? selectedCategory?.maxPoints ?? 500 : 200}
               value={customPoints}
               onChange={(event) => setCustomPoints(Number(event.target.value))}
               className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"

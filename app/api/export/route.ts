@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
-import { getLeaderboardPlayers } from "@/lib/analytics";
+import { getAuthenticatedStudent } from "@/lib/auth";
+import { getAnalyticsForRequest } from "@/lib/data";
+import { hasSupabaseConfig } from "@/lib/supabase";
 import { csvEscape } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const rows = getLeaderboardPlayers().map((player) => [
+  if (hasSupabaseConfig() && !(await getAuthenticatedStudent())) {
+    return NextResponse.json({ ok: false, error: "Sign in before exporting team data." }, { status: 401 });
+  }
+
+  const analytics = await getAnalyticsForRequest();
+  const rows = analytics.getLeaderboardPlayers().map((player) => [
     player.rank,
     player.name,
     player.teamDesignation,
@@ -47,7 +54,8 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": 'attachment; filename="scioly-2k-export.csv"'
+      "content-disposition": 'attachment; filename="sciolytracker-export.csv"',
+      "cache-control": "private, no-store"
     }
   });
 }
