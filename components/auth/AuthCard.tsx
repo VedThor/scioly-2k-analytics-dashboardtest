@@ -10,12 +10,13 @@ type AuthMode = "login" | "signup" | "reset-request" | "reset-update";
 
 interface AuthCardProps {
   mode: AuthMode;
+  publicSignupEnabled?: boolean;
 }
 
 const modeCopy: Record<AuthMode, { title: string; eyebrow: string; action: string; endpoint: string }> = {
   login: {
     title: "Sign In",
-    eyebrow: "SciOly 2K Account",
+    eyebrow: "SciOly Tracker Account",
     action: "Sign In",
     endpoint: "/api/auth/login"
   },
@@ -39,7 +40,7 @@ const modeCopy: Record<AuthMode, { title: string; eyebrow: string; action: strin
   }
 };
 
-export function AuthCard({ mode }: AuthCardProps) {
+export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const copy = modeCopy[mode];
@@ -104,7 +105,7 @@ export function AuthCard({ mode }: AuthCardProps) {
         const message = caught instanceof Error ? caught.message : "Auth request failed.";
         setError(
           message === "Auth API unavailable"
-            ? "Accounts require the Vercel/Supabase deployment. GitHub Pages is a read-only demo."
+            ? "The authentication backend is unavailable. Check the Vercel and Supabase configuration."
             : message
         );
       }
@@ -130,7 +131,7 @@ export function AuthCard({ mode }: AuthCardProps) {
         const message = caught instanceof Error ? caught.message : "Could not start Google sign-in.";
         setError(
           message.includes("Supabase")
-            ? "Google accounts require the Vercel/Supabase deployment. GitHub Pages is a read-only demo."
+            ? "Google sign-in is not configured yet. Email/password sign-in may still be available."
             : message
         );
       }
@@ -257,12 +258,16 @@ export function AuthCard({ mode }: AuthCardProps) {
           <div className="mt-6 space-y-2 text-sm text-zinc-400">
             {mode === "login" ? (
               <>
-                <div>
-                  No account yet?{" "}
-                  <Link href="/signup" className="font-black text-cyan-300 hover:text-white">
-                    Create one
-                  </Link>
-                </div>
+                {publicSignupEnabled ? (
+                  <div>
+                    No account yet?{" "}
+                    <Link href="/signup" className="font-black text-cyan-300 hover:text-white">
+                      Create one
+                    </Link>
+                  </div>
+                ) : (
+                  <div>Team accounts are invite-only. Ask an administrator for access.</div>
+                )}
                 <Link href="/reset-password" className="inline-block font-black text-zinc-300 hover:text-white">
                   Forgot password?
                 </Link>

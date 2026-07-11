@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
-import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { auditId?: number; reason?: string };
-  const currentUser = (await getAuthenticatedStudent()) ?? (!hasSupabaseConfig() ? getCurrentDemoUser() : null);
+  const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
   if (!currentUser) {
     return NextResponse.json({ ok: false, error: "Sign in before undoing audit actions." }, { status: 401 });

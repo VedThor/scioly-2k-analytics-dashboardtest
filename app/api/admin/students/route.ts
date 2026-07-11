@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
-import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import type { UserRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function PATCH(request: Request) {
     profileEvents?: string[];
   };
 
-  const currentUser = (await getAuthenticatedStudent()) ?? (!hasSupabaseConfig() ? getCurrentDemoUser() : null);
+  const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
   if (!currentUser) {
     return NextResponse.json({ ok: false, error: "Sign in before editing accounts." }, { status: 401 });
   }

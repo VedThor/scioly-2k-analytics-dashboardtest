@@ -64,8 +64,7 @@ export function AccountManager({ students }: AccountManagerProps) {
         if (!response.ok) throw new Error(payload?.error ?? "Could not save student.");
         setMessage(payload?.message ?? `${row.name} updated.`);
       } catch (caught) {
-        const fallback = caught instanceof Error ? caught.message : "Static demo: account edit staged locally.";
-        setMessage(fallback.includes("fetch") ? "Static demo: account edit staged locally." : fallback);
+        setMessage(caught instanceof Error ? caught.message : "Could not save this account.");
       } finally {
         setSavingId(null);
       }

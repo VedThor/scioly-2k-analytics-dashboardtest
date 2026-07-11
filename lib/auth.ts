@@ -29,7 +29,11 @@ function numberOrUndefined(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-const builtInDefaultAdminEmails = ["aarav@example.com", "aaravsinhaofficial@gmail.com"];
+const builtInDefaultAdminEmails = ["aaravsinhaofficial@gmail.com"];
+
+export function publicSignupEnabled() {
+  return process.env.ALLOW_PUBLIC_SIGNUP === "true";
+}
 
 function defaultAdminEmails() {
   return new Set(

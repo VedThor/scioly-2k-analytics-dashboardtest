@@ -34,20 +34,16 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
           body: JSON.stringify({ id, decision, notes })
         });
 
-        if (!response.ok) {
-          throw new Error("Approval API unavailable");
-        }
-
         const payload = (await response.json()) as { ok: boolean; message?: string; error?: string };
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error ?? "Could not update this point log.");
+        }
         if (payload.ok) {
           setItems((current) => current.filter((item) => item.id !== id));
         }
         setMessage(payload.message ?? payload.error ?? null);
-      } catch {
-        setItems((current) => current.filter((item) => item.id !== id));
-        setMessage(
-          `Static demo: log ${decision}${notes ? ` (${notes})` : ""}. Connect Supabase to persist approval history.`
-        );
+      } catch (caught) {
+        setMessage(caught instanceof Error ? caught.message : "Could not update this point log.");
       }
       setBusyId(null);
     });

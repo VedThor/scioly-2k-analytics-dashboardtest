@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SciOly 2K Analytics",
-  description: "2K-style Science Olympiad performance dashboard for Obra D Tompkins High School"
+  title: {
+    default: "SciOly Tracker",
+    template: "%s | SciOly Tracker"
+  },
+  description: "Science Olympiad rankings, testoffs, competition results, teams, and practice analytics."
 };
 
 export default function RootLayout({

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAppOrigin } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase is not configured." }, { status: 503 });
   }
 
-  const origin = request.headers.get("origin") ?? new URL(request.url).origin;
+  const origin = getAppOrigin(request);
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/reset-password`
   });

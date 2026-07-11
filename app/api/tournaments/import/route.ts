@@ -2,11 +2,28 @@ import { NextResponse } from "next/server";
 import { parseTournamentInput, placementScoresForPreview } from "@/lib/tournament-import";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
-import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { schoolName } from "@/lib/seed";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import type { TournamentSourceType } from "@/lib/types";
 import { normalizeName, roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+function schoolMatchesTracker(value: string) {
+  const clean = (name: string) => normalizeName(name.replace(/\s+(team\s*)?[a-c]$/i, "").trim());
+  const candidate = clean(value);
+  const aliases = [
+    schoolName,
+    ...(process.env.TRACKED_SCHOOL_ALIASES ?? "")
+      .split(",")
+      .map((alias) => alias.trim())
+      .filter(Boolean)
+  ].map(clean);
+
+  return aliases.some(
+    (alias) => candidate === alias || (alias.length >= 8 && candidate.includes(alias)) || (candidate.length >= 8 && alias.includes(candidate))
+  );
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -24,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const authenticatedUser = await getAuthenticatedStudent();
-  const currentUser = authenticatedUser ?? (!hasSupabaseConfig() ? getCurrentDemoUser() : null);
+  const currentUser = authenticatedUser ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
   if (!currentUser) {
     return NextResponse.json({ ok: false, error: "Sign in before importing tournaments." }, { status: 401 });
@@ -68,6 +85,20 @@ export async function POST(request: Request) {
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
+    const localPerformances = placementScoresForPreview(preview).filter((performance) =>
+      schoolMatchesTracker(performance.schoolName)
+    );
+    if (localPerformances.length === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          preview,
+          error: `No rows matched ${schoolName}. Add an exact school alias with TRACKED_SCHOOL_ALIASES if the CSV uses a different name.`
+        },
+        { status: 422 }
+      );
+    }
+
     const { data: tournament, error: tournamentError } = await supabase
       .from("tournaments")
       .insert({
@@ -91,55 +122,78 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, preview, error: tournamentError.message }, { status: 500 });
     }
 
-    for (const performance of placementScoresForPreview(preview)) {
-      const { data: event } = await supabase
+    const { data: existingStudents, error: studentLoadError } = await supabase
+      .from("students")
+      .select("id,name");
+    if (studentLoadError) {
+      await supabase.from("tournaments").delete().eq("id", tournament.id);
+      return NextResponse.json({ ok: false, preview, error: studentLoadError.message }, { status: 500 });
+    }
+
+    const studentsByName = new Map<string, Array<{ id: string; name: string }>>();
+    for (const student of existingStudents ?? []) {
+      const key = normalizeName(student.name);
+      studentsByName.set(key, [...(studentsByName.get(key) ?? []), student]);
+    }
+    for (const performance of localPerformances) {
+      const { data: event, error: eventError } = await supabase
         .from("events")
         .upsert({ name: performance.eventName, category: performance.category }, { onConflict: "name" })
         .select("id")
         .single();
 
+      if (eventError || !event) {
+        await supabase.from("tournaments").delete().eq("id", tournament.id);
+        return NextResponse.json(
+          { ok: false, preview, error: eventError?.message ?? `Could not create ${performance.eventName}.` },
+          { status: 500 }
+        );
+      }
+
       for (const studentName of performance.studentNames) {
-        const normalizedEmail = `${normalizeName(studentName).replace(/\s+/g, ".") || "student"}@local.scioly`;
-        const { data: student } = await supabase
-          .from("students")
-          .select("id")
-          .ilike("name", studentName)
-          .maybeSingle();
-
-        const studentId =
-          student?.id ??
-          (
-            await supabase
-              .from("students")
-              .insert({
-                name: studentName,
-                email: normalizedEmail,
-                role: "viewer",
-                grade: null,
-                profile_events: [performance.eventName]
-              })
-              .select("id")
-              .single()
-          ).data?.id;
-
-        if (studentId && event?.id) {
-          await supabase.from("performances").upsert(
-            {
-              student_id: studentId,
-              tournament_id: tournament.id,
-              event_id: event.id,
-              rank: performance.rank,
-              placement_score: performance.placementScore,
-              participant_names: performance.studentNames,
-              is_medal: performance.isMedal,
-              medal_cutoff: performance.medalCutoff,
-              participation_points: performance.participationPoints,
-              medal_points: performance.medalPoints,
-              event_points: performance.eventPoints,
-              team_designation: performance.teamDesignation
-            },
-            { onConflict: "student_id,tournament_id,event_id" }
+        const normalizedStudentName = normalizeName(studentName);
+        const matches = studentsByName.get(normalizedStudentName) ?? [];
+        if (matches.length > 1) {
+          await supabase.from("tournaments").delete().eq("id", tournament.id);
+          return NextResponse.json(
+            { ok: false, preview, error: `Multiple roster members are named ${studentName}; resolve the duplicate before importing.` },
+            { status: 409 }
           );
+        }
+
+        const studentId = matches[0]?.id;
+        if (!studentId) {
+          await supabase.from("tournaments").delete().eq("id", tournament.id);
+          return NextResponse.json(
+            {
+              ok: false,
+              preview,
+              error: `No roster account matched ${studentName}. Invite or create that student before importing results.`
+            },
+            { status: 422 }
+          );
+        }
+
+        const { error: performanceError } = await supabase.from("performances").upsert(
+          {
+            student_id: studentId,
+            tournament_id: tournament.id,
+            event_id: event.id,
+            rank: performance.rank,
+            placement_score: performance.placementScore,
+            participant_names: performance.studentNames,
+            is_medal: performance.isMedal,
+            medal_cutoff: performance.medalCutoff,
+            participation_points: performance.participationPoints,
+            medal_points: performance.medalPoints,
+            event_points: performance.eventPoints,
+            team_designation: performance.teamDesignation
+          },
+          { onConflict: "student_id,tournament_id,event_id" }
+        );
+        if (performanceError) {
+          await supabase.from("tournaments").delete().eq("id", tournament.id);
+          return NextResponse.json({ ok: false, preview, error: performanceError.message }, { status: 500 });
         }
       }
     }

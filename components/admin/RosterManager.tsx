@@ -2,8 +2,8 @@
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Save } from "lucide-react";
-import { useState } from "react";
+import { GripVertical, Loader2, Save } from "lucide-react";
+import { useState, useTransition } from "react";
 import { OvrBadge } from "@/components/OvrBadge";
 
 interface RosterMember {
@@ -79,6 +79,7 @@ function TeamDropColumn({ group }: { group: RosterGroup }) {
 export function RosterManager({ rosters }: RosterManagerProps) {
   const [groups, setGroups] = useState(rosters);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSaving, startSaving] = useTransition();
 
   function findGroupByMember(memberId: string) {
     return groups.find((group) => group.members.some((member) => member.id === memberId));
@@ -110,6 +111,33 @@ export function RosterManager({ rosters }: RosterManagerProps) {
     setMessage(`${member.name} moved to ${targetGroup.label}.`);
   }
 
+  function saveRosters() {
+    setMessage(null);
+    startSaving(async () => {
+      try {
+        const response = await fetch("/api/admin/rosters", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            groups: groups.map((group) => ({
+              teamId: group.id,
+              memberIds: group.members.map((member) => member.id)
+            }))
+          })
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; message?: string; error?: string }
+          | null;
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error ?? "Could not save rosters.");
+        }
+        setMessage(payload.message ?? "Team rosters saved.");
+      } catch (caught) {
+        setMessage(caught instanceof Error ? caught.message : "Could not save rosters.");
+      }
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-md border border-court-line bg-court-panel p-5 md:flex-row md:items-center md:justify-between">
@@ -119,10 +147,11 @@ export function RosterManager({ rosters }: RosterManagerProps) {
         </div>
         <button
           type="button"
-          onClick={() => setMessage("Roster changes staged locally. Wire Supabase credentials to persist them.")}
+          onClick={saveRosters}
+          disabled={isSaving}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200"
         >
-          <Save className="h-4 w-4" aria-hidden="true" />
+          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
           Save Roster
         </button>
       </div>

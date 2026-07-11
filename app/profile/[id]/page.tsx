@@ -1,13 +1,8 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { PlayerProfile } from "@/components/profile/PlayerProfile";
 import { getProfileData } from "@/lib/data";
-import { mockStudents } from "@/lib/seed";
 
-export function generateStaticParams() {
-  return mockStudents.map((student) => ({
-    id: student.id
-  }));
-}
+export const dynamic = "force-dynamic";
 
 interface ProfilePageProps {
   params: Promise<{

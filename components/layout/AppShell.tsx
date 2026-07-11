@@ -6,6 +6,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  ClipboardList,
   FileUp,
   History,
   LayoutDashboard,
@@ -34,6 +35,12 @@ const navItems = [
   },
   { href: "/teams", label: "Teams", icon: Users, role: "viewer" as const },
   {
+    href: "/testoffs",
+    label: "Testoffs",
+    icon: ClipboardList,
+    role: "viewer" as const,
+  },
+  {
     href: "/resources",
     label: "Resources",
     icon: BookOpen,
@@ -55,6 +62,12 @@ const navItems = [
     href: "/admin/upload",
     label: "Upload",
     icon: FileUp,
+    role: "officer" as const,
+  },
+  {
+    href: "/admin/testoffs",
+    label: "Enter Scores",
+    icon: ClipboardList,
     role: "officer" as const,
   },
   {
@@ -103,7 +116,7 @@ export function AppShell({
 
               <div className="min-w-0">
                 <div className="truncate text-xl font-black italic uppercase leading-none text-white">
-                  SciOly 2K
+                  SciOly Tracker
                 </div>
                 <div className="mt-1 truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500 sm:text-xs">
                   {schoolName}

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { calculateActivityPoints } from "@/lib/activity";
+import { activityLabels, calculateActivityPoints } from "@/lib/activity";
+import { getCurrentDemoUser } from "@/lib/analytics";
+import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs } from "@/lib/seed";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, hasSupabaseConfig, isDemoMode } from "@/lib/supabase";
 import type { ActivityType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as {
+  const body = (await request.json().catch(() => null)) as {
     studentId?: string;
     activityType?: ActivityType;
     minutes?: number;
@@ -15,18 +17,62 @@ export async function POST(request: Request) {
     customPoints?: number;
     customLabel?: string;
     customCategoryId?: number;
-  };
+  } | null;
 
-  if (!body.studentId || !body.activityType) {
-    return NextResponse.json({ ok: false, error: "Student and activity are required." }, { status: 400 });
+  if (!body || !body.activityType || !Object.prototype.hasOwnProperty.call(activityLabels, body.activityType)) {
+    return NextResponse.json({ ok: false, error: "A valid activity is required." }, { status: 400 });
   }
 
+  const numericInputs = [
+    ["Minutes", body.minutes],
+    ["Quantity", body.quantity],
+    ["Custom points", body.customPoints]
+  ] as const;
+
+  for (const [label, value] of numericInputs) {
+    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+      return NextResponse.json(
+        { ok: false, error: `${label} must be a non-negative number.` },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (
+    body.customCategoryId !== undefined &&
+    (!Number.isInteger(body.customCategoryId) || body.customCategoryId <= 0)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Custom category must be a positive integer." },
+      { status: 400 }
+    );
+  }
+
+  if (body.customLabel !== undefined && typeof body.customLabel !== "string") {
+    return NextResponse.json({ ok: false, error: "Custom label must be text." }, { status: 400 });
+  }
+
+  const authenticatedStudent = await getAuthenticatedStudent();
+  const currentUser = authenticatedStudent ?? (isDemoMode() ? getCurrentDemoUser() : null);
+
+  if (!currentUser) {
+    return NextResponse.json({ ok: false, error: "Sign in before submitting points." }, { status: 401 });
+  }
+
+  if (body.studentId !== undefined && body.studentId !== currentUser.id) {
+    return NextResponse.json(
+      { ok: false, error: "You can only submit points for your own account." },
+      { status: 403 }
+    );
+  }
+
+  const studentId = currentUser.id;
   const today = new Date().toISOString().slice(0, 10);
   const submissionsToday = mockPointLogs.filter(
-    (log) => log.studentId === body.studentId && log.submittedAt.slice(0, 10) === today
+    (log) => log.studentId === studentId && log.submittedAt.slice(0, 10) === today
   ).length;
 
-  if (submissionsToday >= 10) {
+  if (isDemoMode() && submissionsToday >= 10) {
     return NextResponse.json({ ok: false, error: "Daily submission limit reached." }, { status: 429 });
   }
 
@@ -42,27 +88,44 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
+  if (hasSupabaseConfig() && !supabase) {
+    return NextResponse.json(
+      { ok: false, error: "Point storage is not configured for this deployment." },
+      { status: 503 }
+    );
+  }
+
+  let acceptedPoints = points;
   if (supabase) {
-    const { error } = await supabase.from("grind_points").insert({
-      student_id: body.studentId,
-      activity_type: body.activityType,
-      points,
-      minutes: body.minutes ?? 0,
-      quantity: body.quantity ?? null,
-      custom_label: body.activityType === "custom_activity" ? body.customLabel?.trim() || "Custom Activity" : null,
-      custom_category_id: body.customCategoryId ?? null,
-      metadata: body.activityType === "custom_activity" ? { requestedLabel: body.customLabel ?? null } : {},
-      is_approved: false
-    });
+    const { data, error } = await supabase
+      .from("grind_points")
+      .insert({
+        student_id: studentId,
+        activity_type: body.activityType,
+        points,
+        minutes: body.minutes ?? 0,
+        quantity: body.quantity ?? null,
+        custom_label: body.activityType === "custom_activity" ? body.customLabel?.trim() || "Custom Activity" : null,
+        custom_category_id: body.customCategoryId ?? null,
+        metadata: body.activityType === "custom_activity" ? { requestedLabel: body.customLabel ?? null } : {},
+        is_approved: false
+      })
+      .select("points")
+      .single();
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      const limitReached = error.message.toLowerCase().includes("daily point log limit");
+      return NextResponse.json(
+        { ok: false, error: limitReached ? "Daily submission limit reached." : error.message },
+        { status: limitReached ? 429 : 500 }
+      );
     }
+    acceptedPoints = Number(data?.points ?? points);
   }
 
   return NextResponse.json({
     ok: true,
-    message: `${points} points submitted for officer approval.`,
-    points
+    message: `${acceptedPoints} points submitted for officer approval.`,
+    points: acceptedPoints
   });
 }

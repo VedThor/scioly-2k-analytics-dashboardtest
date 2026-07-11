@@ -9,6 +9,12 @@ export function hasSupabaseConfig() {
   );
 }
 
+export function isDemoMode() {
+  return !hasSupabaseConfig() && !hasSupabaseAdminConfig() && (
+    process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO_MODE === "true"
+  );
+}
+
 export function hasSupabaseAdminConfig() {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY

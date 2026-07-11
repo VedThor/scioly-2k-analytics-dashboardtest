@@ -3,7 +3,6 @@
 import { useState, useTransition, type ChangeEvent } from "react";
 import { ClipboardList, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import type { Student, TournamentImportPreview, TournamentSourceType } from "@/lib/types";
-import { buildStaticTournamentPreview } from "@/lib/static-tournament-import";
 import { cn, formatNumber } from "@/lib/utils";
 
 interface TournamentUploadProps {
@@ -11,16 +10,16 @@ interface TournamentUploadProps {
 }
 
 const sampleCsv = `Event,Rank,School,Team,Students,Medal
-Water Quality,2,Obra D Tompkins High School,A,"Jack Lee; Mrinal Rao",Yes
-Anatomy & Physiology,4,Obra D Tompkins High School,A,"Samanyu Pochanapeddi; Maya Iyer",Yes
-Tower,7,Obra D Tompkins High School,A,"Aarav Sinha; Nisha Patel",No
-Disease Detectives,1,Seven Lakes High School,A,"Other Student",Yes`;
+Water Quality,2,Obra D Tompkins High School,A,"Student One; Student Two",Yes
+Anatomy & Physiology,4,Obra D Tompkins High School,A,"Student Three; Student Four",Yes
+Tower,7,Obra D Tompkins High School,A,"Student Five; Student Six",No
+Disease Detectives,1,Seven Lakes High School,A,"Guest Student",Yes`;
 
 const manualSample = `Cy Falls Regional
 2026-03-08
 Schools: Obra D Tompkins High School; Cy Falls High School; Dulles High School
-Water Quality: Jack Lee; Mrinal Rao A #2
-Tower: Aarav Sinha; Nisha Patel A #7`;
+Water Quality: Student One; Student Two A #2
+Tower: Student Five; Student Six A #7`;
 
 export function TournamentUpload({ currentUser }: TournamentUploadProps) {
   const [mode, setMode] = useState<TournamentSourceType>("duosmium_csv");
@@ -55,7 +54,10 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
         });
 
         if (!response.ok) {
-          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          const failure = (await response.json().catch(() => null)) as
+            | { error?: string; preview?: TournamentImportPreview }
+            | null;
+          if (failure?.preview) setPreview(failure.preview);
           throw new Error(failure?.error ?? "Tournament import API unavailable");
         }
 
@@ -70,23 +72,9 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
         }
         setMessage(result.message ?? result.error ?? null);
       } catch (caught) {
-        const staticPreview = buildStaticTournamentPreview(rawInput, {
-          mode: mode === "manual" ? "manual" : "duosmium_csv",
-          tournamentName,
-          date,
-          medalCutoff,
-          participationPoints
-        });
-        setPreview(staticPreview);
-        const error = caught instanceof Error ? errorMessage(caught.message) : "Parsed locally.";
-        setMessage(commit ? `${error} Static demo cannot persist imports.` : error);
+        setMessage(caught instanceof Error ? caught.message : "Tournament import failed.");
       }
     });
-  }
-
-  function errorMessage(message: string) {
-    if (message.includes("Manual")) return message;
-    return "Static demo: parsed locally with the deterministic CSV parser.";
   }
 
   function loadFile(event: ChangeEvent<HTMLInputElement>) {

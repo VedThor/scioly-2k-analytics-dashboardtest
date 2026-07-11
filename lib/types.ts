@@ -272,3 +272,76 @@ export interface TournamentImportPreview {
   warnings: string[];
   missingFields: string[];
 }
+
+export interface TestoffSeason {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
+
+export interface TestoffStudentOption {
+  id: string;
+  name: string;
+  grade: number;
+}
+
+export interface TestoffResult {
+  id: number;
+  sessionId: number;
+  studentId: string;
+  studentName: string;
+  rawScore: number;
+  rank: number;
+  rankingScore: number;
+  notes?: string;
+}
+
+export interface TestoffSessionDetail {
+  id: number;
+  seasonId: number;
+  eventId: number;
+  name: string;
+  date: string;
+  maxScore: number;
+  weight: number;
+  notes?: string;
+  results: TestoffResult[];
+}
+
+export interface TestoffCompositeRanking {
+  rank: number;
+  studentId: string;
+  studentName: string;
+  compositeScore: number;
+  weightedScore: number;
+  completedSessions: number;
+  totalSessions: number;
+}
+
+export interface TestoffEventRanking {
+  seasonId: number;
+  seasonName: string;
+  eventId: number;
+  eventName: string;
+  eventCategory: EventCategory;
+  totalWeight: number;
+  sessions: TestoffSessionDetail[];
+  rankings: TestoffCompositeRanking[];
+}
+
+export interface TestoffDashboardData {
+  configured: boolean;
+  activeSeasonId?: number;
+  seasons: TestoffSeason[];
+  eventRankings: TestoffEventRanking[];
+}
+
+export interface TestoffAdminData {
+  configured: boolean;
+  activeSeasonId?: number;
+  seasons: TestoffSeason[];
+  events: EventDefinition[];
+  students: TestoffStudentOption[];
+}
