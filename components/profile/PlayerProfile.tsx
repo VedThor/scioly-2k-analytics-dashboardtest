@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ExternalLink, Medal, Trophy, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { DeltaIndicator } from "@/components/DeltaIndicator";
@@ -22,6 +22,24 @@ interface PlayerProfileProps {
 export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileProps) {
   const [tab, setTab] = useState<"competitions" | "points">("competitions");
   const tier = getRatingTier(player.ovrRating);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (mode !== "modal") return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [mode, onClose]);
 
   const content = (
     <div className={cn("bg-court-black", mode === "modal" ? "min-h-screen" : "rounded-md border border-court-line")}>
@@ -30,12 +48,12 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <Avatar name={player.name} src={player.profilePictureUrl} size="xl" borderColor={tier.color} />
             <div>
-              <div className="flex flex-wrap items-center gap-3 text-xs font-black uppercase text-zinc-400">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
                 <span>Rank #{player.rank}</span>
                 <span>{player.teamDesignation} Team</span>
                 <span>Grade {player.grade}</span>
               </div>
-              <h1 className="mt-2 text-balance text-4xl font-black italic uppercase leading-none text-white md:text-5xl">
+              <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight text-white md:text-4xl">
                 {player.name}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -45,7 +63,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
               {player.profileEvents && player.profileEvents.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {player.profileEvents.map((event) => (
-                    <span key={event} className="rounded border border-court-line bg-court-elevated px-2 py-1 text-[11px] font-black uppercase text-zinc-300">
+                    <span key={event} className="rounded-full bg-court-elevated px-2.5 py-1 text-xs font-medium text-zinc-600">
                       {event}
                     </span>
                   ))}
@@ -58,17 +76,18 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
             {mode === "modal" ? (
               <Link
                 href={`/profile/${player.id}`}
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-black uppercase text-zinc-300 transition hover:border-cyan-400 hover:text-white"
+                className="inline-flex h-11 items-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white"
               >
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                Full Profile
+                Open full profile
               </Link>
             ) : null}
             {onClose ? (
               <button
                 type="button"
                 onClick={onClose}
-                className="grid h-10 w-10 place-items-center rounded-md border border-court-line text-zinc-300 transition hover:border-red-400 hover:text-white"
+                ref={closeButtonRef}
+                className="grid h-11 w-11 place-items-center rounded-md border border-court-line text-zinc-600 transition hover:border-red-400 hover:text-white"
                 aria-label="Close player detail"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -119,7 +138,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
         <section>
           <div className="mb-3 flex items-center gap-2">
             <Trophy className="h-5 w-5 text-cyan-300" aria-hidden="true" />
-            <h2 className="text-lg font-black italic uppercase text-white">Improvement Graph</h2>
+            <h2 className="text-lg font-semibold text-white">Progress over time</h2>
           </div>
           <PlayerTrendChart snapshots={player.snapshots} />
         </section>
@@ -127,7 +146,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
         <section>
           <div className="mb-3 flex items-center gap-2">
             <Medal className="h-5 w-5 text-pink-300" aria-hidden="true" />
-            <h2 className="text-lg font-black italic uppercase text-white">Event Breakdowns</h2>
+            <h2 className="text-lg font-semibold text-white">Event performance</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {player.eventBreakdowns.length > 0 ? (
@@ -169,7 +188,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
 
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-black italic uppercase text-white">History</h2>
+            <h2 className="text-lg font-semibold text-white">History</h2>
             <div className="inline-flex rounded-md border border-court-line bg-court-panel p-1">
               {(["competitions", "points"] as const).map((item) => (
                 <button
@@ -265,8 +284,11 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
 
   if (mode === "modal") {
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
-        {content}
+      <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={`${player.name} profile`}>
+        <button type="button" onClick={onClose} className="fixed inset-0 h-full w-full bg-[rgba(18,35,28,0.45)] backdrop-blur-sm" aria-label="Close player profile" />
+        <div className="relative ml-auto min-h-full w-full max-w-6xl shadow-panel">
+          {content}
+        </div>
       </div>
     );
   }

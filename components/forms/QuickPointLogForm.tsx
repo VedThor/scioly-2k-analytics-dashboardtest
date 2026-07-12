@@ -109,25 +109,25 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   }
 
   return (
-    <div className="rounded-md border border-court-line bg-court-panel p-4">
+    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm" aria-labelledby="log-practice-heading">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-black italic uppercase text-white">Quick Add</h2>
-          <p className="mt-1 text-sm text-zinc-400">Logs enter the officer queue before changing OVR.</p>
+          <h2 id="log-practice-heading" className="text-lg font-semibold text-white">Log practice</h2>
+          <p className="mt-1 text-sm leading-5 text-zinc-500">Your entry will be sent to an officer for approval.</p>
         </div>
         <div className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-right">
-          <div className="text-[10px] font-black uppercase text-cyan-200">Points</div>
-          <div className="text-2xl font-black italic text-white">{formatNumber(points)}</div>
+          <div className="text-xs font-medium text-cyan-300">Points</div>
+          <div className="text-xl font-semibold tabular-nums text-white">{formatNumber(points)}</div>
         </div>
       </div>
 
       <div className="mt-4 grid gap-3">
-        <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
-          Activity
+        <label className="grid gap-2 text-sm font-medium text-zinc-600">
+          Activity type
           <select
             value={activityType}
             onChange={(event) => setActivityType(event.target.value as ActivityType)}
-            className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+            className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
           >
             {activityTypes.map((type) => (
               <option key={type} value={type}>
@@ -138,39 +138,39 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         </label>
 
         {(activityType === "solo_study" || activityType === "partner_study" || activityType === "build_testing") && (
-          <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
-            Minutes
+          <label className="grid gap-2 text-sm font-medium text-zinc-600">
+            Time spent (minutes)
             <input
               type="number"
               min={0}
               value={minutes}
               onChange={(event) => setMinutes(Number(event.target.value))}
-              className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+              className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
             />
           </label>
         )}
 
         {activityType === "id_specimens" ? (
-          <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+          <label className="grid gap-2 text-sm font-medium text-zinc-600">
             Quantity
             <input
               type="number"
               min={0}
               value={quantity}
               onChange={(event) => setQuantity(Number(event.target.value))}
-              className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+              className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
             />
           </label>
         ) : null}
 
         {activityType === "custom_activity" ? (
           <>
-            <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+            <label className="grid gap-2 text-sm font-medium text-zinc-600">
               Point Category
               <select
                 value={customCategoryId ?? "other"}
                 onChange={(event) => chooseCustomCategory(event.target.value)}
-                className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+                className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
               >
                 {customCategories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -181,16 +181,16 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
               </select>
             </label>
             {selectedCategory ? (
-              <div className="rounded-md border border-court-line bg-court-elevated p-3 text-xs text-zinc-400">
+              <div className="rounded-md bg-court-elevated p-3 text-xs text-zinc-500">
                 Default {selectedCategory.defaultPoints} points · maximum {selectedCategory.maxPoints} points
               </div>
             ) : (
-              <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+              <label className="grid gap-2 text-sm font-medium text-zinc-600">
                 Category Name
                 <input
                   value={customLabel}
                   onChange={(event) => setCustomLabel(event.target.value)}
-                  className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+                  className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
                 />
               </label>
             )}
@@ -199,15 +199,15 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         ) : null}
 
         {activityType === "build_testing" || activityType === "custom_activity" ? (
-          <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
-            Custom Points
+          <label className="grid gap-2 text-sm font-medium text-zinc-600">
+            Requested points
             <input
               type="number"
               min={0}
               max={activityType === "custom_activity" ? selectedCategory?.maxPoints ?? 500 : 200}
               value={customPoints}
               onChange={(event) => setCustomPoints(Number(event.target.value))}
-              className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+              className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
             />
           </label>
         ) : null}
@@ -217,13 +217,13 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         type="button"
         onClick={submit}
         disabled={isPending || points <= 0}
-        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />}
-        Submit Log
+        Send for approval
       </button>
 
-      {message ? <div className="mt-3 rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
-    </div>
+      {message ? <div className="mt-3 rounded-md bg-court-elevated p-3 text-sm text-zinc-600" role="status">{message}</div> : null}
+    </section>
   );
 }
