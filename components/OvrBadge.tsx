@@ -8,9 +8,9 @@ interface OvrBadgeProps {
 }
 
 const sizes = {
-  sm: "min-w-14 px-2 py-1 text-lg",
-  md: "min-w-16 px-3 py-1.5 text-2xl",
-  lg: "min-w-24 px-4 py-3 text-5xl"
+  sm: "min-w-11 px-2 py-1 text-sm",
+  md: "min-w-12 px-2.5 py-1.5 text-base",
+  lg: "min-w-20 px-4 py-2.5 text-3xl"
 };
 
 export function OvrBadge({ value, size = "md", showTier = false }: OvrBadgeProps) {
@@ -20,17 +20,16 @@ export function OvrBadge({ value, size = "md", showTier = false }: OvrBadgeProps
     <div className="inline-flex items-center gap-2">
       <span
         className={cn(
-          "inline-flex items-center justify-center rounded-md border font-black italic leading-none",
+          "inline-flex items-center justify-center rounded-md border font-semibold tabular-nums leading-none",
           sizes[size],
-          tier.className,
-          tier.glow && "shadow-opal"
+          tier.className
         )}
         title={tier.name}
       >
         {Math.round(value)}
       </span>
       {showTier ? (
-        <span className="hidden text-xs font-black uppercase text-zinc-400 sm:inline">{tier.name}</span>
+        <span className="hidden text-xs font-medium text-zinc-500 sm:inline">{tier.name}</span>
       ) : null}
     </div>
   );

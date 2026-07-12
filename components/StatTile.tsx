@@ -8,10 +8,10 @@ interface StatTileProps {
 
 export function StatTile({ label, value, detail }: StatTileProps) {
   return (
-    <div className="rounded-md border border-court-line bg-court-elevated p-4">
-      <div className="text-[11px] font-black uppercase text-zinc-500">{label}</div>
-      <div className="mt-2 min-h-10 text-3xl font-black italic text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs text-zinc-400">{detail}</div> : null}
+    <div className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm">
+      <div className="text-sm font-medium text-zinc-500">{label}</div>
+      <div className="mt-2 min-h-9 text-2xl font-semibold tabular-nums text-white">{value}</div>
+      {detail ? <div className="mt-1 text-xs leading-5 text-zinc-500">{detail}</div> : null}
     </div>
   );
 }

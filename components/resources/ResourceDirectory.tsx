@@ -1,0 +1,99 @@
+"use client";
+
+import Link from "next/link";
+import { Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { SciolyEventHub } from "@/lib/resource-data";
+import { cn } from "@/lib/utils";
+
+const readinessStyles: Record<SciolyEventHub["readiness"], string> = {
+  Loaded: "bg-emerald-300/10 text-emerald-200",
+  Building: "bg-amber-300/10 text-amber-200",
+  "Needs Uploads": "bg-red-300/10 text-red-200",
+};
+
+export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All");
+
+  const categories = useMemo(() => ["All", ...Array.from(new Set(events.map((event) => event.category)))], [events]);
+  const filteredEvents = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return events.filter((event) => {
+      const matchesCategory = category === "All" || event.category === category;
+      const matchesQuery = !normalized || [
+        event.name,
+        event.tagline,
+        event.category,
+        ...event.topics,
+        ...event.resources.map((resource) => resource.title),
+      ].some((value) => value.toLowerCase().includes(normalized));
+      return matchesCategory && matchesQuery;
+    });
+  }, [category, events, query]);
+
+  return (
+    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6" aria-labelledby="resource-directory-heading">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 id="resource-directory-heading" className="text-xl font-semibold text-white">Resources by event</h2>
+          <p className="mt-1 text-sm text-zinc-500">{filteredEvents.length} of {events.length} event libraries</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="relative sm:w-72">
+            <span className="sr-only">Search resources</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search events, topics, or resources"
+              className="h-11 w-full rounded-md border border-court-line bg-court-panel pl-9 pr-3 text-sm text-white outline-none transition focus:border-cyan-400"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Filter by category</span>
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className="h-11 w-full rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none focus:border-cyan-400 sm:w-36"
+            >
+              {categories.map((item) => <option key={item} value={item}>{item === "All" ? "All categories" : item}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {filteredEvents.length > 0 ? (
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filteredEvents.map((event) => (
+            <Link
+              key={event.slug}
+              href={`/resources/${event.slug}`}
+              className="group rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-medium text-zinc-500">{event.category}</div>
+                  <h3 className="mt-1 text-lg font-semibold text-white group-hover:text-cyan-300">{event.name}</h3>
+                </div>
+                <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", readinessStyles[event.readiness])}>{event.readiness}</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">{event.tagline}</p>
+              <div className="mt-4 flex items-center gap-3 text-xs text-zinc-500">
+                <span>{event.resources.length} resources</span>
+                <span aria-hidden="true">·</span>
+                <span>{event.questions.length + event.tests.length} practice items</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-md bg-court-elevated px-4 py-10 text-center">
+          <p className="font-medium text-white">No matching events</p>
+          <p className="mt-1 text-sm text-zinc-500">Try a broader search or another category.</p>
+        </div>
+      )}
+    </section>
+  );
+}

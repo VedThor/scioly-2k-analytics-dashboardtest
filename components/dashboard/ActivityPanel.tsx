@@ -11,28 +11,28 @@ interface ActivityPanelProps {
 
 export function ActivityPanel({ players }: ActivityPanelProps) {
   return (
-    <div className="rounded-md border border-court-line bg-court-panel p-4">
+    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
         <Flame className="h-5 w-5 text-cyan-300" aria-hidden="true" />
-        <h2 className="text-lg font-black italic uppercase text-white">30-Day Velocity</h2>
+        <h2 className="text-lg font-semibold text-white">Practice activity</h2>
       </div>
       <div className="space-y-3">
         {players.slice(0, 6).map((player, index) => (
           <Link
             key={player.id}
             href={`/profile/${player.id}`}
-            className="flex items-center gap-3 rounded-md border border-court-line bg-court-elevated p-3 transition hover:border-cyan-400/60"
+            className="flex items-center gap-3 rounded-md p-2.5 transition-colors hover:bg-court-elevated"
           >
-            <div className="w-5 text-xs font-black text-zinc-500">#{index + 1}</div>
+            <div className="w-5 text-xs font-medium tabular-nums text-zinc-500">#{index + 1}</div>
             <Avatar name={player.name} size="sm" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-black text-white">{player.name}</div>
-              <div className="text-xs font-bold uppercase text-zinc-500">{formatNumber(player.thirtyDayPoints)} pts</div>
+              <div className="truncate text-sm font-semibold text-white">{player.name}</div>
+              <div className="text-xs text-zinc-500">{formatNumber(player.thirtyDayPoints)} points in 30 days</div>
             </div>
             <OvrBadge value={player.ovrRating} size="sm" />
           </Link>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

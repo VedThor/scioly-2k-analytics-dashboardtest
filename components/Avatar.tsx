@@ -14,7 +14,7 @@ const sizes = {
   xl: "h-28 w-28 text-3xl"
 };
 
-export function Avatar({ name, src, size = "md", borderColor = "#2b2b2b" }: AvatarProps) {
+export function Avatar({ name, src, size = "md", borderColor = "#dce4de" }: AvatarProps) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -29,7 +29,7 @@ export function Avatar({ name, src, size = "md", borderColor = "#2b2b2b" }: Avat
 
   return (
     <div
-      className={`${sizes[size]} grid shrink-0 place-items-center rounded-full border-2 bg-zinc-900 font-black italic text-white`}
+      className={`${sizes[size]} grid shrink-0 place-items-center rounded-full border bg-court-elevated font-semibold text-white`}
       style={{ borderColor }}
       aria-hidden="true"
     >
