@@ -17,7 +17,7 @@ async function loadLiveSearchDirectory(): Promise<SearchDirectory> {
   if (!supabase) throw new Error("Search directory storage is not configured.");
 
   const [students, teams, memberships, events, seasons, sessions] = await Promise.all([
-    supabase.from("students").select("id,name,grade,profile_events"),
+    supabase.from("students").select("*"),
     supabase.from("teams").select("id,school_name,team_designation"),
     supabase.from("team_members").select("team_id,student_id"),
     supabase.from("events").select("id,name"),
@@ -30,12 +30,12 @@ async function loadLiveSearchDirectory(): Promise<SearchDirectory> {
   const seasonNames = new Map((seasons.data ?? []).map((season) => [Number(season.id), String(season.name)]));
 
   return {
-    students: (students.data ?? []).map((student) => ({
+    students: (students.data ?? []).filter((student) => student.is_active !== false).map((student) => ({
       id: String(student.id),
       name: String(student.name),
       grade: Number(student.grade ?? 9),
       profileEvents: Array.isArray(student.profile_events)
-        ? student.profile_events.filter((event): event is string => typeof event === "string")
+        ? student.profile_events.filter((event: unknown): event is string => typeof event === "string")
         : []
     })),
     teams: (teams.data ?? []).map((team) => ({

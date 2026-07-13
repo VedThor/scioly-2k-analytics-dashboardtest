@@ -23,6 +23,7 @@ export function LiveRefresh() {
         if (!payload.version) return;
         if (versionRef.current && versionRef.current !== payload.version) {
           versionRef.current = payload.version;
+          window.dispatchEvent(new Event("scioly:data-updated"));
           startTransition(() => router.refresh());
         } else {
           versionRef.current = payload.version;

@@ -42,10 +42,12 @@ function optionalText(value: unknown) {
 
 export function libraryItemFromRow(row: LibraryItemRow): LibraryItem {
   const createdAt = row.created_at ?? new Date(0).toISOString();
+  const eventSlug = canonicalEventSlug(row.event_slug);
+  const staticEvent = sciolyEvents.find((event) => event.slug === eventSlug);
   return {
     id: Number(row.id),
-    eventSlug: row.event_slug,
-    eventName: row.event_name,
+    eventSlug,
+    eventName: staticEvent?.name ?? row.event_name,
     kind: row.kind,
     title: row.title,
     description: optionalText(row.description),
@@ -193,14 +195,8 @@ function liveOnlyEvent(slug: string, name: string, items: LibraryItem[]): Scioly
 
 export async function getLibraryEvents(): Promise<SciolyEventHub[]> {
   const configured = hasSupabaseAdminConfig();
-  const [liveItems, configuredEventNames] = configured
-    ? await Promise.all([loadCachedActiveLibraryItems(), loadCachedConfiguredEventNames()])
-    : [[], []];
+  const liveItems = configured ? await loadCachedActiveLibraryItems() : [];
   const bySlug = new Map(sciolyEvents.map((event) => [event.slug, cloneStaticEvent(event)]));
-  for (const name of configuredEventNames) {
-    const slug = slugify(name);
-    if (slug && !bySlug.has(slug)) bySlug.set(slug, liveOnlyEvent(slug, name, []));
-  }
   const grouped = new Map<string, LibraryItem[]>();
   for (const item of liveItems) {
     const items = grouped.get(item.eventSlug);
@@ -227,7 +223,8 @@ export async function getLibraryEvents(): Promise<SciolyEventHub[]> {
 }
 
 export async function getLibraryEvent(slug: string) {
-  return (await getLibraryEvents()).find((event) => event.slug === slug);
+  const canonicalSlug = canonicalEventSlug(slug);
+  return (await getLibraryEvents()).find((event) => event.slug === canonicalSlug);
 }
 
 function slugify(value: string) {
@@ -240,17 +237,32 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+const eventSlugAliases = new Map([
+  ["anatomy-physiology", "anatomy-and-physiology"],
+  ["rocks-minerals", "rocks-and-minerals"],
+]);
+
+function canonicalEventSlug(value: string) {
+  const slug = slugify(value);
+  return eventSlugAliases.get(slug) ?? slug;
+}
+
 export async function getLibraryEventOptions(): Promise<LibraryEventOption[]> {
   const options = new Map<string, LibraryEventOption>(
     sciolyEvents.map((event) => [event.slug, { slug: event.slug, name: event.name }])
   );
   const items = await getManagedLibraryItems();
-  for (const item of items) options.set(item.eventSlug, { slug: item.eventSlug, name: item.eventName });
+  for (const item of items) {
+    const slug = canonicalEventSlug(item.eventSlug);
+    const staticEvent = sciolyEvents.find((event) => event.slug === slug);
+    options.set(slug, { slug, name: staticEvent?.name ?? item.eventName });
+  }
 
   if (hasSupabaseAdminConfig()) {
     for (const name of await loadCachedConfiguredEventNames()) {
-      const slug = slugify(name);
-      if (slug && !options.has(slug)) options.set(slug, { slug, name });
+      const slug = canonicalEventSlug(name);
+      const staticEvent = sciolyEvents.find((event) => event.slug === slug);
+      if (slug && !options.has(slug)) options.set(slug, { slug, name: staticEvent?.name ?? name });
     }
   }
 

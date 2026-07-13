@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
+import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,18 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
+  }
+
+  const student = await getAuthenticatedStudent();
+  if (!student) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "This account has been archived. Ask a team administrator to restore it."
+      },
+      { status: 403 }
+    );
   }
 
   return NextResponse.json({

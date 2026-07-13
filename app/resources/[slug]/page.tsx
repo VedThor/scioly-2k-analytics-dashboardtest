@@ -22,6 +22,8 @@ export default async function ResourceEventPage({
   const [currentUser, event] = await Promise.all([getCurrentUser(), getLibraryEvent(slug)]);
 
   if (!event) notFound();
+  const representedTopics = new Set(event.resources.map((resource) => resource.topic));
+  const coveredTopicCount = event.topics.filter((topic) => representedTopics.has(topic)).length;
 
   return (
     <AppShell currentUser={currentUser}>
@@ -31,12 +33,12 @@ export default async function ResourceEventPage({
         </Link>
 
         <PageHeader
-          label={`${event.category} event · Lead: ${event.lead}`}
+          label={`${event.category} event · ${event.season && event.rulesStatus ? `${event.season} ${event.rulesStatus.toLowerCase()} scope` : "Team library"}${event.isTrial ? " · Featured trial" : ""}`}
           title={event.name}
           description={event.description}
           actions={(
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex min-h-11 items-center rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.coverageScore}% coverage</span>
+              <span className="inline-flex min-h-11 items-center rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.resources.length} vetted resource{event.resources.length === 1 ? "" : "s"}</span>
               {roleMeets(currentUser.role, "officer") ? (
                 <Link href={`/admin/library?event=${encodeURIComponent(event.slug)}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Manage library</Link>
               ) : null}
@@ -44,9 +46,22 @@ export default async function ResourceEventPage({
           )}
         />
 
+        {event.isTrial || event.rulesStatus === "Draft" ? (
+          <section className={`rounded-md border p-4 sm:p-5 ${event.isTrial ? "border-amber-300/40 bg-amber-300/10" : "border-court-line bg-court-panel"}`}>
+            <div className={`text-sm font-semibold ${event.isTrial ? "text-amber-200" : "text-white"}`}>
+              {event.isTrial ? "Featured trial — confirm your tournament offers it" : "2027 draft-scope notice"}
+            </div>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              {event.isTrial
+                ? "Code Craze is listed separately from the 23 scored national events. Its library is available for teams whose local schedule includes the trial."
+                : "The supplied Summer Workshop rules are marked draft. Use this hub to prepare, but verify final dimensions, permitted materials, and corrections on the official Science Olympiad page before competing."}
+            </p>
+          </section>
+        ) : null}
+
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile href="#topics" label="Resource coverage" value={`${event.coverageScore}%`} detail={event.readiness} />
-          <StatTile href="#resources" label="Resources" value={event.resources.length} detail="Notes and guides" />
+          <StatTile href="#topics" label="Topics represented" value={`${coveredTopicCount}/${event.topics.length}`} detail="Backed by a named resource" />
+          <StatTile href="#resources" label="Vetted resources" value={event.resources.length} detail="External links and team guides" />
           <StatTile href="#questions" label="Practice questions" value={event.questions.length} detail="Topic checks" />
           <StatTile href="#tests" label="Tests" value={event.tests.length} detail="Mini and full sets" />
         </section>
@@ -89,7 +104,7 @@ export default async function ResourceEventPage({
 
         <section id="resources" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
           <div className="text-sm font-medium text-cyan-300">Resources</div>
-          <h2 className="mt-1 text-xl font-semibold text-white">Notes, guides, and cheat sheets</h2>
+          <h2 className="mt-1 text-xl font-semibold text-white">Vetted links and team guides</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {event.resources.map((resource) => (
               <article id={`resource-${searchAnchor(resource.title)}`} key={resource.title} className="min-w-0 scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
@@ -177,9 +192,12 @@ export default async function ResourceEventPage({
                   ) : null}
                   {test.url ? (
                     <a href={test.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Open practice test ↗</a>
+                  ) : test.libraryId ? (
+                    <Link href={`/practice/tests/${test.libraryId}`} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Start interactive test →</Link>
                   ) : (
                     <div className="mt-4 rounded-md border border-court-line bg-court-panel px-4 py-3 text-sm text-zinc-500">No test file has been uploaded yet.</div>
                   )}
+                  {test.libraryId && test.url ? <Link href={`/practice/tests/${test.libraryId}`} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Take on-site test →</Link> : null}
                 </article>
               ))}
               {event.tests.length === 0 ? <p className="rounded-md border border-dashed border-court-line p-5 text-sm text-zinc-500">No practice tests have been added for this event yet.</p> : null}

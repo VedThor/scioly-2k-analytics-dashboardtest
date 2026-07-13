@@ -1,6 +1,8 @@
 "use client";
 
-import { BookOpen, ExternalLink, Loader2, Pencil, PlusCircle, RotateCcw, Search, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { BookOpen, ExternalLink, ListChecks, Loader2, Pencil, PlusCircle, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import type {
   LibraryEventOption,
@@ -12,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface FormState {
   id?: number;
+  updatedAt?: string;
   eventSlug: string;
   eventName: string;
   kind: LibraryItemKind;
@@ -52,6 +55,7 @@ function blankForm(event?: LibraryEventOption): FormState {
 function formFromItem(item: LibraryItem): FormState {
   return {
     id: item.id,
+    updatedAt: item.updatedAt,
     eventSlug: item.eventSlug,
     eventName: item.eventName,
     kind: item.kind,
@@ -73,6 +77,7 @@ function formFromItem(item: LibraryItem): FormState {
 function requestBody(form: FormState) {
   return {
     id: form.id,
+    updatedAt: form.updatedAt,
     eventSlug: form.eventSlug,
     eventName: form.eventName,
     kind: form.kind,
@@ -94,8 +99,8 @@ function requestBody(form: FormState) {
 const kindLabels: Record<LibraryItemKind, string> = {
   resource: "Resource link",
   guide: "Guide text",
-  question: "Practice question",
-  test: "Practice test",
+  question: "Quick question (answer reveal)",
+  test: "Interactive practice test",
 };
 
 export function LibraryManager({
@@ -107,6 +112,7 @@ export function LibraryManager({
   events: LibraryEventOption[];
   initialEvent?: string;
 }) {
+  const router = useRouter();
   const initialOption = events.find((event) => event.slug === initialEvent) ?? events[0];
   const [items, setItems] = useState(initialItems);
   const [form, setForm] = useState<FormState>(() => blankForm(initialOption));
@@ -155,6 +161,7 @@ export function LibraryManager({
         });
         const result = await response.json() as LibraryMutationResponse;
         if (!response.ok || !result.ok || !result.item) throw new Error(result.error ?? "Could not save this item.");
+        const shouldOpenQuestionEditor = !form.id && form.kind === "test" && result.persisted !== false;
         setItems((current) => form.id
           ? current.map((item) => item.id === result.item?.id ? result.item : item)
           : [result.item!, ...current]);
@@ -162,6 +169,7 @@ export function LibraryManager({
         resetForm(result.item.eventSlug);
         setEventFilter(result.item.eventSlug);
         setStatusFilter("active");
+        if (shouldOpenQuestionEditor) router.push(`/admin/library/tests/${result.item.id}`);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Could not save this item.");
       }
@@ -176,11 +184,11 @@ export function LibraryManager({
         const response = await fetch("/api/admin/library", {
           method: "DELETE",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: item.id }),
+          body: JSON.stringify({ id: item.id, updatedAt: item.updatedAt }),
         });
         const result = await response.json() as LibraryMutationResponse;
         if (!response.ok || !result.ok) throw new Error(result.error ?? "Could not remove this item.");
-        setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, isActive: false } : entry));
+        setItems((current) => current.map((entry) => entry.id === item.id ? result.item ?? { ...entry, isActive: false } : entry));
         setConfirmingId(null);
         setMessage(result.message ?? "Item removed.");
       } catch (caught) {
@@ -236,10 +244,21 @@ export function LibraryManager({
 
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             Item type
-            <select value={form.kind} onChange={(event) => updateForm({ kind: event.target.value as LibraryItemKind })} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400">
+            <select value={form.kind} disabled={Boolean(form.id)} onChange={(event) => updateForm({ kind: event.target.value as LibraryItemKind })} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60">
               {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
+            {form.id ? <span className="text-xs font-normal text-zinc-500">Type is fixed after creation so attached questions and attempts stay valid.</span> : null}
           </label>
+
+          {form.kind === "test" ? (
+            <div className="rounded-md border border-cyan-400/30 bg-cyan-400/10 p-3 text-sm leading-6 text-zinc-600">
+              Create the test first, then choose <span className="font-semibold text-white">Edit questions</span> to add interactive MCQs and free-response questions. A file link is optional.
+            </div>
+          ) : form.kind === "question" ? (
+            <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm leading-6 text-zinc-600">
+              This creates a short answer-reveal card. For scored MCQs or free responses, create an interactive practice test instead.
+            </div>
+          ) : null}
 
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             {form.kind === "question" ? "Question" : "Title"}
@@ -286,7 +305,7 @@ export function LibraryManager({
 
           {form.kind === "resource" || form.kind === "test" ? (
             <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
-              Link <span className="font-normal text-zinc-500">(optional if you add text below)</span>
+              Link <span className="font-normal text-zinc-500">({form.kind === "test" ? "optional attachment" : "optional if you add text below"})</span>
               <input type="url" value={form.url} maxLength={1000} onChange={(event) => updateForm({ url: event.target.value })} placeholder="https://…" className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400" />
             </label>
           ) : null}
@@ -319,7 +338,7 @@ export function LibraryManager({
 
         <button type="button" onClick={save} disabled={isPending || !form.eventSlug || !form.title.trim()} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : form.id ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />}
-          {form.id ? "Save changes" : "Add to library"}
+          {form.id ? "Save changes" : form.kind === "test" ? "Create interactive test" : "Add to library"}
         </button>
         {message ? <div className="mt-3 rounded-md border border-emerald-300/40 bg-emerald-300/10 p-3 text-sm text-emerald-300" role="status">{message}</div> : null}
         {error ? <div className="mt-3 rounded-md border border-red-300/40 bg-red-300/10 p-3 text-sm text-red-300" role="alert">{error}</div> : null}
@@ -362,6 +381,11 @@ export function LibraryManager({
                 {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-300 hover:text-white"><ExternalLink className="h-3 w-3" /> Open</a> : null}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2">
+                {item.kind === "test" ? (
+                  <Link href={`/admin/library/tests/${item.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cyan-400/10 px-3 text-xs font-semibold text-cyan-300 hover:bg-cyan-400/20">
+                    <ListChecks className="h-3.5 w-3.5" aria-hidden="true" /> Edit questions
+                  </Link>
+                ) : null}
                 <button type="button" onClick={() => { setForm(formFromItem(item)); setError(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white">
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edit
                 </button>

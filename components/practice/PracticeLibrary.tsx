@@ -9,12 +9,22 @@ import { searchAnchor } from "@/lib/search-utils";
 type Question = SciolyQuestion & { eventName: string; eventSlug: string };
 type Test = SciolyTest & { eventName: string; eventSlug: string };
 
-export function PracticeLibrary({ questions, tests }: { questions: Question[]; tests: Test[] }) {
+export function PracticeLibrary({
+  questions,
+  tests,
+  eventNames,
+  canManage = false,
+}: {
+  questions: Question[];
+  tests: Test[];
+  eventNames: string[];
+  canManage?: boolean;
+}) {
   const [view, setView] = useState<"questions" | "tests">("questions");
   const [query, setQuery] = useState("");
   const [eventName, setEventName] = useState("All");
   const [difficulty, setDifficulty] = useState("All");
-  const events = useMemo(() => ["All", ...Array.from(new Set([...questions, ...tests].map((item) => item.eventName))).sort()], [questions, tests]);
+  const events = useMemo(() => ["All", ...Array.from(new Set([...eventNames, ...questions.map((item) => item.eventName), ...tests.map((item) => item.eventName)])).sort()], [eventNames, questions, tests]);
   const normalized = query.trim().toLowerCase();
   const items = view === "questions"
     ? questions.filter((item) => (eventName === "All" || item.eventName === eventName) && (difficulty === "All" || item.difficulty === difficulty) && (!normalized || `${item.question} ${item.topic} ${item.eventName}`.toLowerCase().includes(normalized)))
@@ -38,16 +48,27 @@ export function PracticeLibrary({ questions, tests }: { questions: Question[]; t
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 sm:p-5">
         {items.map((item) => {
           const isQuestion = "question" in item;
+          const href = !isQuestion && item.libraryId
+            ? `/practice/tests/${item.libraryId}`
+            : `/resources/${item.eventSlug}#${isQuestion ? `question-${searchAnchor(item.question)}` : `test-${searchAnchor(item.title)}`}`;
           return (
-            <Link key={isQuestion ? `${item.eventSlug}-${item.question}` : `${item.eventSlug}-${item.title}`} href={`/resources/${item.eventSlug}#${isQuestion ? `question-${searchAnchor(item.question)}` : `test-${searchAnchor(item.title)}`}`} className="min-w-0 rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
+            <Link key={isQuestion ? `${item.eventSlug}-${item.question}` : `${item.eventSlug}-${item.title}`} href={href} className="min-w-0 rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
               <div className="text-xs font-medium text-cyan-300">{item.eventName} · {item.difficulty}</div>
               <h3 className="mt-2 break-words font-semibold leading-6 text-white">{isQuestion ? item.question : item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-zinc-500">{isQuestion ? `Topic: ${item.topic}` : item.description}</p>
-              <p className="mt-3 text-sm font-medium text-cyan-300">{isQuestion ? "Answer this question" : "Open test details"} →</p>
+              <p className="mt-3 text-sm font-medium text-cyan-300">{isQuestion ? "Answer this question" : item.libraryId ? "Start interactive test" : "Open test details"} →</p>
             </Link>
           );
         })}
-        {items.length === 0 ? <div className="col-span-full py-10 text-center"><p className="font-medium text-white">No matching practice</p><p className="mt-1 text-sm text-zinc-500">Try another event, level, or search.</p></div> : null}
+        {items.length === 0 ? (
+          <div className="col-span-full rounded-md border border-dashed border-court-line px-4 py-10 text-center">
+            <p className="font-medium text-white">No {view === "questions" ? "questions" : "tests"} published for this filter</p>
+            <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-zinc-500">
+              {query || difficulty !== "All" ? "Clear a filter or choose another event." : "Your team has not added real practice material here yet."}
+            </p>
+            {canManage ? <Link href="/admin/library" className="mt-4 inline-flex min-h-11 items-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Add practice material</Link> : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );

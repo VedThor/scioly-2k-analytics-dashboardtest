@@ -17,6 +17,9 @@ create table if not exists public.students (
   potential_rating numeric(5, 2),
   total_points integer not null default 0,
   profile_events text[] not null default '{}'::text[],
+  is_active boolean not null default true,
+  archived_at timestamptz,
+  archived_by uuid references public.students(id),
   prev_ovr numeric(5, 2) not null default 60.00,
   prev_avg_placement numeric(6, 2),
   last_snapshot_date timestamptz,
@@ -27,6 +30,44 @@ alter table public.students
 add column if not exists auth_user_id uuid unique references auth.users(id) on delete set null;
 alter table public.students add column if not exists potential_rating numeric(5, 2);
 alter table public.students add column if not exists profile_events text[] not null default '{}'::text[];
+alter table public.students add column if not exists is_active boolean not null default true;
+alter table public.students add column if not exists archived_at timestamptz;
+alter table public.students add column if not exists archived_by uuid references public.students(id);
+update public.students set is_active = true where is_active is null;
+alter table public.students alter column is_active set default true;
+alter table public.students alter column is_active set not null;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'students_active_elevated_role_requires_login'
+      and conrelid = 'public.students'::regclass
+  ) then
+    alter table public.students
+      add constraint students_active_elevated_role_requires_login
+      check (is_active = false or role = 'viewer' or auth_user_id is not null)
+      not valid;
+  end if;
+end;
+$$;
+do $$
+begin
+  if exists (
+    select 1
+    from public.students
+    group by lower(btrim(email))
+    having count(*) > 1
+  ) then
+    raise exception 'Students contain duplicate email addresses that differ only by capitalization. Merge or rename them before rerunning this schema.';
+  end if;
+end;
+$$;
+update public.students set email = lower(btrim(email)) where email <> lower(btrim(email));
+create unique index if not exists students_email_case_insensitive
+on public.students (lower(btrim(email)));
+create index if not exists students_active_name_idx
+on public.students (is_active, name);
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
@@ -197,11 +238,41 @@ create table if not exists public.library_items (
   constraint library_items_content_check check (
     (kind = 'question' and answer is not null and length(trim(answer)) > 0)
     or (kind = 'guide' and body is not null and length(trim(body)) > 0)
-    or (kind in ('resource', 'test') and (
+    or kind = 'test'
+    or (kind = 'resource' and (
       (url is not null and length(trim(url)) > 0)
       or (body is not null and length(trim(body)) > 0)
     ))
   )
+);
+
+create or replace function public.prevent_library_item_kind_change()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if old.kind is distinct from new.kind then
+    raise exception 'Library item type cannot be changed after creation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists library_item_kind_guard on public.library_items;
+create trigger library_item_kind_guard
+before update of kind on public.library_items
+for each row execute function public.prevent_library_item_kind_change();
+
+alter table public.library_items drop constraint if exists library_items_content_check;
+alter table public.library_items add constraint library_items_content_check check (
+  (kind = 'question' and answer is not null and length(trim(answer)) > 0)
+  or (kind = 'guide' and body is not null and length(trim(body)) > 0)
+  or kind = 'test'
+  or (kind = 'resource' and (
+    (url is not null and length(trim(url)) > 0)
+    or (body is not null and length(trim(body)) > 0)
+  ))
 );
 
 create index if not exists library_items_event_active_idx
@@ -209,6 +280,103 @@ on public.library_items (event_slug, is_active, kind);
 
 create index if not exists library_items_updated_idx
 on public.library_items (updated_at desc);
+
+-- Interactive practice tests. Answer keys stay behind officer-only RLS and are
+-- served to members only after submission by the authenticated API routes.
+create table if not exists public.practice_test_questions (
+  id bigserial primary key,
+  test_id integer not null references public.library_items(id) on delete cascade,
+  question_type text not null check (question_type in ('mcq', 'frq')),
+  prompt text not null check (length(btrim(prompt)) > 0),
+  options jsonb not null default '[]'::jsonb,
+  correct_option integer,
+  model_answer text,
+  explanation text,
+  points integer not null default 1 check (points between 1 and 100),
+  position integer not null default 0 check (position between 0 and 1000),
+  is_active boolean not null default true,
+  created_by uuid references public.students(id) on delete set null,
+  updated_by uuid references public.students(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint practice_test_questions_content_check check (
+    (
+      question_type = 'mcq'
+      and jsonb_typeof(options) = 'array'
+      and jsonb_array_length(options) between 2 and 6
+      and correct_option is not null
+      and correct_option >= 0
+      and correct_option < jsonb_array_length(options)
+    )
+    or (
+      question_type = 'frq'
+      and jsonb_typeof(options) = 'array'
+      and jsonb_array_length(options) = 0
+      and correct_option is null
+      and model_answer is not null
+      and length(btrim(model_answer)) > 0
+    )
+  )
+);
+
+create index if not exists practice_test_questions_test_position_idx
+on public.practice_test_questions (test_id, is_active, position, id);
+
+create or replace function public.validate_practice_question_test()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.library_items item
+    where item.id = new.test_id and item.kind = 'test'
+  ) then
+    raise exception 'Practice questions must belong to a practice test';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists practice_question_test_guard on public.practice_test_questions;
+create trigger practice_question_test_guard
+before insert or update of test_id on public.practice_test_questions
+for each row execute function public.validate_practice_question_test();
+
+create table if not exists public.practice_test_attempts (
+  id uuid primary key default gen_random_uuid(),
+  test_id integer not null references public.library_items(id) on delete restrict,
+  student_id uuid not null references public.students(id) on delete restrict,
+  status text not null default 'in_progress' check (status in ('in_progress', 'submitted', 'discarded')),
+  question_snapshot jsonb not null check (jsonb_typeof(question_snapshot) = 'array'),
+  answers jsonb not null default '{}'::jsonb check (jsonb_typeof(answers) = 'object'),
+  frq_reviews jsonb not null default '{}'::jsonb check (jsonb_typeof(frq_reviews) = 'object'),
+  mcq_correct integer not null default 0 check (mcq_correct >= 0),
+  mcq_total integer not null default 0 check (mcq_total >= 0),
+  earned_points numeric(8, 2) not null default 0 check (earned_points >= 0),
+  max_points numeric(8, 2) not null default 0 check (max_points >= 0),
+  version integer not null default 1 check (version > 0),
+  started_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  submitted_at timestamptz,
+  discarded_at timestamptz
+);
+
+alter table public.practice_test_attempts add column if not exists version integer not null default 1;
+alter table public.practice_test_attempts add column if not exists discarded_at timestamptz;
+alter table public.practice_test_attempts drop constraint if exists practice_test_attempts_status_check;
+alter table public.practice_test_attempts add constraint practice_test_attempts_status_check
+check (status in ('in_progress', 'submitted', 'discarded'));
+alter table public.practice_test_attempts drop constraint if exists practice_test_attempts_version_check;
+alter table public.practice_test_attempts add constraint practice_test_attempts_version_check check (version > 0);
+
+create index if not exists practice_test_attempts_student_test_idx
+on public.practice_test_attempts (student_id, test_id, started_at desc);
+
+create unique index if not exists practice_test_attempts_one_open_idx
+on public.practice_test_attempts (student_id, test_id)
+where status = 'in_progress';
 
 alter table public.grind_points add column if not exists custom_label text;
 alter table public.grind_points add column if not exists custom_category_id integer references public.custom_point_categories(id);
@@ -424,8 +592,11 @@ set search_path = public
 as $$
   select id
   from public.students
-  where auth_user_id = auth.uid()
-     or email = auth.jwt() ->> 'email'
+  where (
+    auth_user_id = auth.uid()
+    or lower(email) = lower(auth.jwt() ->> 'email')
+  )
+  and is_active = true
   limit 1
 $$;
 
@@ -479,7 +650,7 @@ begin
   values (
     new.id,
     profile_name,
-    new.email,
+    lower(btrim(new.email)),
     profile_role,
     profile_grade,
     coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture'),
@@ -493,6 +664,7 @@ begin
       grade = coalesce(public.students.grade, excluded.grade),
       role = case
         when excluded.role = 'admin' then 'admin'
+        when public.students.is_active = false and public.students.auth_user_id is null then 'viewer'
         else public.students.role
       end,
       profile_picture_url = coalesce(public.students.profile_picture_url, excluded.profile_picture_url);
@@ -514,7 +686,7 @@ security definer
 set search_path = public
 as $$
   select coalesce(
-    (select role from public.students where id = public.current_student_id()),
+    (select role from public.students where id = public.current_student_id() and is_active = true),
     'viewer'
   )
 $$;
@@ -534,6 +706,101 @@ stable
 as $$
   select public.current_student_role() = 'admin'
 $$;
+
+create or replace function public.admin_set_student_profile(
+  target_student_id uuid,
+  actor_student_id uuid,
+  expected_profile jsonb,
+  next_name text,
+  next_email text,
+  next_grade integer,
+  next_role text,
+  next_events text[],
+  next_is_active boolean,
+  next_archived_at timestamptz,
+  next_archived_by uuid
+)
+returns public.students
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_profile public.students;
+  updated_profile public.students;
+begin
+  -- Serialize the small set of mutations that could remove the final active
+  -- administrator. The transaction-scoped lock is released automatically.
+  perform pg_advisory_xact_lock(hashtextextended('scioly-active-admin-guard', 0));
+
+  select *
+  into current_profile
+  from public.students
+  where id = target_student_id
+  for update;
+
+  if not found then
+    raise exception 'Person not found';
+  end if;
+  if expected_profile is null
+     or current_profile.name is distinct from (expected_profile ->> 'name')
+     or current_profile.email is distinct from lower(btrim(expected_profile ->> 'email'))
+     or current_profile.grade is distinct from nullif(expected_profile ->> 'grade', '')::integer
+     or current_profile.role is distinct from (expected_profile ->> 'role')
+     or current_profile.profile_events is distinct from coalesce(
+       array(select jsonb_array_elements_text(expected_profile -> 'profile_events')),
+       '{}'::text[]
+     )
+     or current_profile.is_active is distinct from (expected_profile ->> 'is_active')::boolean
+     or current_profile.archived_at is distinct from nullif(expected_profile ->> 'archived_at', '')::timestamptz
+     or current_profile.archived_by is distinct from nullif(expected_profile ->> 'archived_by', '')::uuid
+     or current_profile.auth_user_id is distinct from nullif(expected_profile ->> 'auth_user_id', '')::uuid
+  then
+    raise exception 'This person changed in another session. Reload and try again';
+  end if;
+  if actor_student_id = target_student_id and next_is_active = false then
+    raise exception 'You cannot archive your own account';
+  end if;
+  if next_role not in ('viewer', 'officer', 'admin') then
+    raise exception 'Invalid account role';
+  end if;
+  if next_is_active and current_profile.auth_user_id is null and next_role <> 'viewer' then
+    raise exception 'Connect a login before granting officer or admin access';
+  end if;
+  if current_profile.role = 'admin'
+     and current_profile.is_active = true
+     and (next_role <> 'admin' or next_is_active = false)
+     and not exists (
+       select 1
+       from public.students other
+       where other.id <> target_student_id
+         and other.role = 'admin'
+         and other.is_active = true
+     )
+  then
+    raise exception 'Add another active admin before changing the last admin';
+  end if;
+
+  update public.students
+  set name = btrim(next_name),
+      email = lower(btrim(next_email)),
+      grade = next_grade,
+      role = next_role,
+      profile_events = coalesce(next_events, '{}'::text[]),
+      is_active = next_is_active,
+      archived_at = next_archived_at,
+      archived_by = next_archived_by
+  where id = target_student_id
+  returning * into updated_profile;
+
+  return updated_profile;
+end;
+$$;
+
+revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) from public;
+revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) from anon;
+revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) from authenticated;
+grant execute on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) to service_role;
 
 create or replace function public.prepare_grind_point_submission()
 returns trigger
@@ -770,6 +1037,7 @@ begin
     from public.team_members tm
     join public.students s on s.id = tm.student_id
     where tm.team_id = target_team_id
+      and s.is_active = true
     order by s.ovr_rating desc
     limit 15
   ) top_members;
@@ -867,10 +1135,13 @@ begin
     from jsonb_array_elements(roster_groups) as team_group
     cross join lateral jsonb_array_elements_text(team_group -> 'memberIds') as member(student_id)
     where not exists (
-      select 1 from public.students s where s.id::text = member.student_id
+      select 1
+      from public.students s
+      where s.id::text = member.student_id
+        and s.is_active = true
     )
   ) then
-    raise exception 'One or more students do not exist';
+    raise exception 'One or more students do not exist or are archived';
   end if;
 
   if exists (
@@ -990,7 +1261,8 @@ begin
     ),
     s.potential_rating,
     now()
-  from public.students s;
+  from public.students s
+  where s.is_active = true;
 
   get diagnostics inserted_count = row_count;
 
@@ -1001,7 +1273,8 @@ begin
         from public.performances p
         where p.student_id = s.id
       ),
-      last_snapshot_date = now();
+      last_snapshot_date = now()
+  where s.is_active = true;
 
   return inserted_count;
 end;
@@ -1022,6 +1295,8 @@ revoke all on function public.calculate_student_ovr(uuid) from public, anon, aut
 revoke all on function public.recalculate_team_ovr(uuid) from public, anon, authenticated;
 revoke all on function public.replace_team_memberships(jsonb) from public, anon, authenticated;
 revoke all on function public.create_weekly_ovr_snapshots() from public, anon, authenticated;
+revoke all on function public.validate_practice_question_test() from public, anon, authenticated;
+revoke all on function public.prevent_library_item_kind_change() from public, anon, authenticated;
 grant execute on function public.calculate_student_ovr(uuid) to service_role;
 grant execute on function public.recalculate_team_ovr(uuid) to service_role;
 grant execute on function public.replace_team_memberships(jsonb) to service_role;
@@ -1089,6 +1364,8 @@ alter table public.audit_logs enable row level security;
 alter table public.system_settings enable row level security;
 alter table public.custom_point_categories enable row level security;
 alter table public.library_items enable row level security;
+alter table public.practice_test_questions enable row level security;
+alter table public.practice_test_attempts enable row level security;
 alter table public.seasons enable row level security;
 alter table public.testoff_sessions enable row level security;
 alter table public.testoff_results enable row level security;
@@ -1110,7 +1387,7 @@ drop policy if exists "teams_select_logged_in" on public.teams;
 create policy "teams_select_logged_in"
 on public.teams for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "teams_admin_write" on public.teams;
 create policy "teams_admin_write"
@@ -1123,7 +1400,7 @@ drop policy if exists "team_members_select_logged_in" on public.team_members;
 create policy "team_members_select_logged_in"
 on public.team_members for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "team_members_admin_write" on public.team_members;
 create policy "team_members_admin_write"
@@ -1136,7 +1413,7 @@ drop policy if exists "events_select_logged_in" on public.events;
 create policy "events_select_logged_in"
 on public.events for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "events_officer_write" on public.events;
 create policy "events_officer_write"
@@ -1149,7 +1426,7 @@ drop policy if exists "tournaments_select_logged_in" on public.tournaments;
 create policy "tournaments_select_logged_in"
 on public.tournaments for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "tournaments_officer_insert" on public.tournaments;
 create policy "tournaments_officer_insert"
@@ -1167,7 +1444,7 @@ drop policy if exists "performances_select_logged_in" on public.performances;
 create policy "performances_select_logged_in"
 on public.performances for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "performances_officer_write" on public.performances;
 create policy "performances_officer_write"
@@ -1236,7 +1513,7 @@ drop policy if exists "custom_point_categories_select_logged_in" on public.custo
 create policy "custom_point_categories_select_logged_in"
 on public.custom_point_categories for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "custom_point_categories_admin_all" on public.custom_point_categories;
 create policy "custom_point_categories_admin_all"
@@ -1249,27 +1526,33 @@ drop policy if exists "library_items_select_logged_in" on public.library_items;
 create policy "library_items_select_logged_in"
 on public.library_items for select
 to authenticated
-using (is_active or public.is_officer_or_admin());
+using (
+  public.current_student_id() is not null
+  and (is_active or public.is_officer_or_admin())
+);
 
 drop policy if exists "library_items_officer_write" on public.library_items;
 drop policy if exists "library_items_officer_insert" on public.library_items;
-create policy "library_items_officer_insert"
-on public.library_items for insert
-to authenticated
-with check (public.is_officer_or_admin());
-
 drop policy if exists "library_items_officer_update" on public.library_items;
-create policy "library_items_officer_update"
-on public.library_items for update
+
+drop policy if exists "practice_questions_officer_select" on public.practice_test_questions;
+create policy "practice_questions_officer_select"
+on public.practice_test_questions for select
 to authenticated
-using (public.is_officer_or_admin())
-with check (public.is_officer_or_admin());
+using (public.is_officer_or_admin());
+
+drop policy if exists "practice_questions_officer_insert" on public.practice_test_questions;
+drop policy if exists "practice_questions_officer_update" on public.practice_test_questions;
+
+-- Attempts contain answer-key snapshots, so members never read/write this
+-- table directly. Authenticated route handlers validate ownership and use the
+-- service role. Enabling RLS without member policies keeps direct REST closed.
 
 drop policy if exists "seasons_select_logged_in" on public.seasons;
 create policy "seasons_select_logged_in"
 on public.seasons for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "seasons_admin_write" on public.seasons;
 create policy "seasons_admin_write"
@@ -1282,7 +1565,7 @@ drop policy if exists "testoff_sessions_select_logged_in" on public.testoff_sess
 create policy "testoff_sessions_select_logged_in"
 on public.testoff_sessions for select
 to authenticated
-using (true);
+using (public.current_student_id() is not null);
 
 drop policy if exists "testoff_sessions_officer_write" on public.testoff_sessions;
 create policy "testoff_sessions_officer_write"

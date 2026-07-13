@@ -23,9 +23,9 @@ export function searchResourceContent(query: string, events: SciolyEventHub[] = 
       kind: "event",
       group: "Events",
       title: event.name,
-      subtitle: `${event.category} event · ${event.resources.length} resources · ${event.questions.length + event.tests.length} practice items`,
+      subtitle: `${event.isTrial ? "Featured trial" : `${event.category} event`} · ${event.resources.length} resources · ${event.questions.length + event.tests.length} practice items`,
       href: `/resources/${event.slug}`,
-      keywords: [event.tagline, event.description, event.category, ...event.topics, ...event.starterPath]
+      keywords: [event.tagline, event.description, event.category, event.season ? String(event.season) : "", event.isTrial ? "featured trial" : "scored event", ...event.topics, ...event.starterPath]
     });
 
     for (const resource of event.resources) {
@@ -59,7 +59,7 @@ export function searchResourceContent(query: string, events: SciolyEventHub[] = 
         group: "Practice",
         title: test.title,
         subtitle: `${event.name} · ${test.format} · ${test.difficulty}`,
-        href: `/resources/${event.slug}#test-${searchAnchor(test.title)}`,
+        href: test.libraryId ? `/practice/tests/${test.libraryId}` : `/resources/${event.slug}#test-${searchAnchor(test.title)}`,
         keywords: [event.name, test.description, test.format, test.difficulty, test.body ?? "", test.url ?? ""]
       });
     }

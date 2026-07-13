@@ -20,7 +20,7 @@ export default async function ResourcesPage() {
         <PageHeader
           label="Preparation"
           title="Event resources"
-          description="Choose an event to find starter steps, topic guides, practice questions, and test sets in one place."
+          description="Open any 2027 Division C event for a focused study path and vetted links. Team questions and interactive tests appear here as officers add them."
           actions={roleMeets(currentUser.role, "officer") ? (
             <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
               Manage library
@@ -29,35 +29,37 @@ export default async function ResourcesPage() {
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile href="#resource-directory" label="Event libraries" value={stats.events} detail="Active events" />
-          <StatTile href="#resource-directory" label="Resources" value={stats.resources} detail="Notes, guides, and sheets" />
+          <StatTile href="#resource-directory" label="Event libraries" value={stats.events} detail={`${stats.scoredEvents} scored + ${stats.trials} trial${stats.teamLibraries ? ` + ${stats.teamLibraries} team archive` : ""}`} />
+          <StatTile href="#resource-directory" label="Vetted resources" value={stats.resources} detail="Real external study material" />
           <StatTile href="/practice" linkLabel="Browse practice" label="Practice questions" value={stats.questions} detail="With answers and explanations" />
           <StatTile href="/practice" linkLabel="Browse tests" label="Practice tests" value={stats.tests} detail="Mini, full, and testoff sets" />
         </section>
 
         <ResourceDirectory events={events} />
 
-        <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Recommended starting points</h2>
-            <p className="mt-1 text-sm text-zinc-500">Useful resources for getting oriented quickly.</p>
-          </div>
-          <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            {featuredResources.map((resource) => (
-              <Link
-                key={`${resource.eventSlug}-${resource.title}`}
-                href={`/resources/${resource.eventSlug}#resource-${searchAnchor(resource.title)}`}
-                className="rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated"
-              >
-                <div className="text-xs font-medium text-cyan-300">{resource.eventName}</div>
-                <div className="mt-1 font-semibold text-white">{resource.title}</div>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">{resource.description}</p>
-                <div className="mt-3 text-xs text-zinc-500">{resource.type} · {resource.topic} · {resource.difficulty}</div>
-                <div className="mt-3 text-sm font-medium text-cyan-300">Open in {resource.eventName} →</div>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {featuredResources.length ? (
+          <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Team picks</h2>
+              <p className="mt-1 text-sm text-zinc-500">Resources your officers marked as the best starting points.</p>
+            </div>
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              {featuredResources.map((resource) => (
+                <Link
+                  key={`${resource.eventSlug}-${resource.title}`}
+                  href={`/resources/${resource.eventSlug}#resource-${searchAnchor(resource.title)}`}
+                  className="rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated"
+                >
+                  <div className="text-xs font-medium text-cyan-300">{resource.eventName}</div>
+                  <div className="mt-1 font-semibold text-white">{resource.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">{resource.description}</p>
+                  <div className="mt-3 text-xs text-zinc-500">{resource.type} · {resource.topic} · {resource.difficulty}</div>
+                  <div className="mt-3 text-sm font-medium text-cyan-300">Open in {resource.eventName} →</div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section>
           <h2 className="text-lg font-semibold text-white">Using the resource library</h2>

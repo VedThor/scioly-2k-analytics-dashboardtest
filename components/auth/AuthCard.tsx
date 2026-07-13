@@ -55,7 +55,9 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
       ? "This password reset link is invalid or expired. Request a new link below."
       : searchParams.get("error") === "auth_callback_failed"
         ? "Sign-in could not be completed. Please try again or contact your team administrator."
-        : null
+        : searchParams.get("error") === "account_archived"
+          ? "This account has been archived. Ask a team administrator to restore it before signing in."
+          : null
   );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";

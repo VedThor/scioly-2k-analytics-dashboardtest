@@ -145,6 +145,109 @@ function restorableMemberships(snapshot: Record<string, unknown>, entityId: stri
   return memberIds.map((studentId) => ({ team_id: entityId, student_id: studentId }));
 }
 
+function restorableStudent(snapshot: Record<string, unknown>, entityId: string) {
+  const id = String(snapshot.id ?? entityId);
+  const name = typeof snapshot.name === "string" ? snapshot.name.trim() : "";
+  const email = typeof snapshot.email === "string" ? snapshot.email.trim().toLowerCase() : null;
+  const grade = snapshot.grade === null ? null : Number(snapshot.grade);
+  const role = snapshot.role;
+  const profileEvents = Array.isArray(snapshot.profile_events)
+    ? snapshot.profile_events.filter((event): event is string => typeof event === "string")
+    : [];
+  if (
+    id !== entityId || name.length < 2 || name.length > 100 ||
+    (email !== null && (!email.includes("@") || email.length > 254)) ||
+    (grade !== null && (!Number.isInteger(grade) || grade < 9 || grade > 12)) ||
+    (role !== "viewer" && role !== "officer" && role !== "admin") ||
+    profileEvents.some((event) => event.length > 100)
+  ) return null;
+  return {
+    name,
+    ...(email !== null ? { email } : {}),
+    grade,
+    role,
+    profile_events: profileEvents,
+    ...(typeof snapshot.is_active === "boolean" ? { is_active: snapshot.is_active } : {}),
+    ...(snapshot.archived_at === null || typeof snapshot.archived_at === "string" ? { archived_at: snapshot.archived_at } : {}),
+    ...(snapshot.archived_by === null || typeof snapshot.archived_by === "string" ? { archived_by: snapshot.archived_by } : {})
+  };
+}
+
+function restorableStudentMemberships(snapshot: Record<string, unknown>, studentId: string) {
+  if (!Array.isArray(snapshot.memberships)) return null;
+  const memberships: Array<{ team_id: string; student_id: string }> = [];
+  for (const value of snapshot.memberships) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const row = value as Record<string, unknown>;
+    const teamId = typeof row.team_id === "string" ? row.team_id : "";
+    if (!teamId || String(row.student_id) !== studentId) return null;
+    memberships.push({ team_id: teamId, student_id: studentId });
+  }
+  return memberships;
+}
+
+function sameStudentSnapshot(current: Record<string, unknown>, expected: NonNullable<ReturnType<typeof restorableStudent>>) {
+  const currentEvents = Array.isArray(current.profile_events)
+    ? current.profile_events.filter((event): event is string => typeof event === "string")
+    : [];
+  return String(current.name ?? "").trim() === expected.name &&
+    (!("email" in expected) || String(current.email ?? "").trim().toLowerCase() === expected.email) &&
+    (current.grade === null ? null : Number(current.grade)) === expected.grade &&
+    current.role === expected.role &&
+    JSON.stringify(currentEvents) === JSON.stringify(expected.profile_events) &&
+    (!("is_active" in expected) || current.is_active === expected.is_active) &&
+    (!("archived_at" in expected) || (current.archived_at ?? null) === expected.archived_at) &&
+    (!("archived_by" in expected) || (current.archived_by ?? null) === expected.archived_by);
+}
+
+function sameStudentMemberships(current: Array<Record<string, unknown>>, expected: Array<{ team_id: string; student_id: string }>) {
+  const currentIds = current.map((membership) => String(membership.team_id)).sort();
+  const expectedIds = expected.map((membership) => membership.team_id).sort();
+  return JSON.stringify(currentIds) === JSON.stringify(expectedIds);
+}
+
+async function setStudentProfile(
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  input: {
+    id: string;
+    actorId: string;
+    snapshot: NonNullable<ReturnType<typeof restorableStudent>>;
+    current: Record<string, unknown>;
+  }
+) {
+  const isActive = typeof input.snapshot.is_active === "boolean"
+    ? input.snapshot.is_active
+    : input.current.is_active !== false;
+  const archivedAt = "archived_at" in input.snapshot
+    ? input.snapshot.archived_at ?? null
+    : (typeof input.current.archived_at === "string" ? input.current.archived_at : null);
+  const archivedBy = "archived_by" in input.snapshot
+    ? input.snapshot.archived_by ?? null
+    : (typeof input.current.archived_by === "string" ? input.current.archived_by : null);
+  const { data, error } = await supabase.rpc("admin_set_student_profile", {
+    target_student_id: input.id,
+    actor_student_id: input.actorId,
+    expected_profile: input.current,
+    next_name: input.snapshot.name,
+    next_email: "email" in input.snapshot ? input.snapshot.email : String(input.current.email),
+    next_grade: input.snapshot.grade,
+    next_role: input.snapshot.role,
+    next_events: input.snapshot.profile_events,
+    next_is_active: isActive,
+    next_archived_at: archivedAt,
+    next_archived_by: archivedBy
+  });
+  return { data: Array.isArray(data) ? data[0] : data, error };
+}
+
+function guardedFunctionMissing(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (
+    error.code === "PGRST202" ||
+    error.code === "42883" ||
+    error.message?.includes("admin_set_student_profile")
+  ));
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as { auditId?: number; reason?: string };
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
@@ -191,6 +294,9 @@ export async function POST(request: Request) {
   let deletedTeamForUndo: { team: Record<string, unknown>; memberships: Array<Record<string, unknown>> } | null = null;
   let previousTeamForUndo: Record<string, unknown> | null = null;
   let previousLibraryRow: Record<string, unknown> | null = null;
+  let previousPracticeQuestion: Record<string, unknown> | null = null;
+  let previousStudentForUndo: Record<string, unknown> | null = null;
+  let previousStudentMembershipsForUndo: Array<Record<string, unknown>> | null = null;
 
   if (undoAction === "tournament.delete" && entityId) {
     const { error } = await supabase.from("tournaments").delete().eq("id", Number(entityId));
@@ -260,17 +366,141 @@ export async function POST(request: Request) {
       })
       .eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  } else if (undoAction === "student.restore" && entityId && before) {
-    const { error } = await supabase
-      .from("students")
-      .update({
-        name: before.name,
-        grade: before.grade,
-        role: before.role,
-        profile_events: before.profile_events ?? []
-      })
-      .eq("id", entityId);
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "student.archive" && entityTable === "students" && entityId) {
+    const [studentResult, membershipResult] = await Promise.all([
+      supabase.from("students").select("*").eq("id", entityId).maybeSingle(),
+      supabase.from("team_members").select("*").eq("student_id", entityId)
+    ]);
+    if (studentResult.error || membershipResult.error) {
+      return NextResponse.json({ ok: false, error: studentResult.error?.message ?? membershipResult.error?.message }, { status: 500 });
+    }
+    if (!studentResult.data) return NextResponse.json({ ok: false, error: "This person no longer exists." }, { status: 409 });
+    if (studentResult.data.is_active === false) return NextResponse.json({ ok: false, error: "This person is already archived." }, { status: 409 });
+    if (entityId === currentUser.id) return NextResponse.json({ ok: false, error: "You cannot archive your own account." }, { status: 409 });
+    if (after?.student && typeof after.student === "object" && !Array.isArray(after.student)) {
+      const expectedStudent = restorableStudent(after.student as Record<string, unknown>, entityId);
+      const expectedMemberships = restorableStudentMemberships(after, entityId);
+      if (!expectedStudent || !expectedMemberships) {
+        return NextResponse.json({ ok: false, error: "The original profile snapshot is incomplete or invalid." }, { status: 409 });
+      }
+      if (!sameStudentSnapshot(studentResult.data as Record<string, unknown>, expectedStudent) ||
+          !sameStudentMemberships((membershipResult.data ?? []) as Array<Record<string, unknown>>, expectedMemberships)) {
+        return NextResponse.json({ ok: false, error: "This person changed after they were added. Undo the newer profile or roster change first." }, { status: 409 });
+      }
+    }
+    previousStudentForUndo = studentResult.data as Record<string, unknown>;
+    previousStudentMembershipsForUndo = (membershipResult.data ?? []) as Array<Record<string, unknown>>;
+    const archiveSnapshot = restorableStudent({
+      ...studentResult.data,
+      is_active: false,
+      archived_at: new Date().toISOString(),
+      archived_by: currentUser.id
+    }, entityId);
+    if (!archiveSnapshot) return NextResponse.json({ ok: false, error: "The current profile is invalid." }, { status: 409 });
+    const { error: updateError } = await setStudentProfile(supabase, {
+      id: entityId,
+      actorId: currentUser.id,
+      snapshot: archiveSnapshot,
+      current: studentResult.data as Record<string, unknown>
+    });
+    if (updateError) return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+    const { error: deleteError } = await supabase.from("team_members").delete().eq("student_id", entityId);
+    if (deleteError) {
+      const { id: _id, ...studentSnapshot } = previousStudentForUndo;
+      await supabase.from("students").update(studentSnapshot).eq("id", entityId);
+      return NextResponse.json({ ok: false, error: deleteError.message }, { status: 500 });
+    }
+  } else if (undoAction === "student.restore" && entityTable === "students" && entityId && before) {
+    const rawStudent = before.student && typeof before.student === "object" && !Array.isArray(before.student)
+      ? before.student as Record<string, unknown>
+      : before;
+    const restoredStudent = restorableStudent(rawStudent, entityId);
+    const shouldRestoreMemberships = rawStudent !== before;
+    const desiredMemberships = shouldRestoreMemberships ? restorableStudentMemberships(before, entityId) : null;
+    if (!restoredStudent || (shouldRestoreMemberships && !desiredMemberships)) {
+      return NextResponse.json({ ok: false, error: "The person snapshot is incomplete or invalid." }, { status: 409 });
+    }
+    const [studentResult, membershipResult] = await Promise.all([
+      supabase.from("students").select("*").eq("id", entityId).maybeSingle(),
+      supabase.from("team_members").select("*").eq("student_id", entityId)
+    ]);
+    if (studentResult.error || membershipResult.error) {
+      return NextResponse.json({ ok: false, error: studentResult.error?.message ?? membershipResult.error?.message }, { status: 500 });
+    }
+    if (!studentResult.data) return NextResponse.json({ ok: false, error: "This person no longer exists." }, { status: 409 });
+    if (!studentResult.data.auth_user_id && restoredStudent.role !== "viewer") {
+      restoredStudent.role = "viewer";
+    }
+    if (after) {
+      const rawExpectedStudent = after.student && typeof after.student === "object" && !Array.isArray(after.student)
+        ? after.student as Record<string, unknown>
+        : after;
+      const expectedStudent = restorableStudent(rawExpectedStudent, entityId);
+      const expectsMemberships = rawExpectedStudent !== after;
+      const expectedMemberships = expectsMemberships ? restorableStudentMemberships(after, entityId) : null;
+      if (!expectedStudent || (expectsMemberships && !expectedMemberships)) {
+        return NextResponse.json({ ok: false, error: "The expected profile snapshot is incomplete or invalid." }, { status: 409 });
+      }
+      if (!sameStudentSnapshot(studentResult.data as Record<string, unknown>, expectedStudent) ||
+          (expectedMemberships && !sameStudentMemberships((membershipResult.data ?? []) as Array<Record<string, unknown>>, expectedMemberships))) {
+        return NextResponse.json({ ok: false, error: "This person changed again. Undo the newer profile or roster change first." }, { status: 409 });
+      }
+    }
+    if (entityId === currentUser.id && restoredStudent.is_active === false) {
+      return NextResponse.json({ ok: false, error: "You cannot archive your own account." }, { status: 409 });
+    }
+    const removesAdminAccess = studentResult.data.role === "admin" && studentResult.data.is_active !== false &&
+      (restoredStudent.role !== "admin" || restoredStudent.is_active === false);
+    if (removesAdminAccess) {
+      const { data: admins, error: adminError } = await supabase.from("students").select("*").eq("role", "admin");
+      if (adminError) return NextResponse.json({ ok: false, error: adminError.message }, { status: 500 });
+      if ((admins ?? []).filter((student) => student.is_active !== false).length <= 1) {
+        return NextResponse.json({ ok: false, error: "Add another active admin before reversing this change." }, { status: 409 });
+      }
+    }
+    previousStudentForUndo = studentResult.data as Record<string, unknown>;
+    previousStudentMembershipsForUndo = (membershipResult.data ?? []) as Array<Record<string, unknown>>;
+    let { error: updateError } = await setStudentProfile(supabase, {
+      id: entityId,
+      actorId: currentUser.id,
+      snapshot: restoredStudent,
+      current: studentResult.data as Record<string, unknown>
+    });
+    if (guardedFunctionMissing(updateError) && !("is_active" in restoredStudent)) {
+      const fallback = await supabase.from("students").update(restoredStudent).eq("id", entityId);
+      updateError = fallback.error;
+    }
+    if (updateError) return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+
+    if (shouldRestoreMemberships) {
+      const { error: deleteError } = await supabase.from("team_members").delete().eq("student_id", entityId);
+      if (deleteError) {
+        const { id: _id, ...studentSnapshot } = previousStudentForUndo;
+        await supabase.from("students").update(studentSnapshot).eq("id", entityId);
+        return NextResponse.json({ ok: false, error: deleteError.message }, { status: 500 });
+      }
+      if (desiredMemberships && desiredMemberships.length > 0) {
+        const teamIds = desiredMemberships.map((membership) => membership.team_id);
+        const { data: existingTeams, error: teamError } = await supabase.from("teams").select("id").in("id", teamIds);
+        if (teamError) {
+          const { id: _id, ...studentSnapshot } = previousStudentForUndo;
+          await supabase.from("students").update(studentSnapshot).eq("id", entityId);
+          if (previousStudentMembershipsForUndo.length > 0) await supabase.from("team_members").insert(previousStudentMembershipsForUndo);
+          return NextResponse.json({ ok: false, error: teamError.message }, { status: 500 });
+        }
+        const validTeamIds = new Set((existingTeams ?? []).map((team) => String(team.id)));
+        const validMemberships = desiredMemberships.filter((membership) => validTeamIds.has(membership.team_id));
+        if (validMemberships.length > 0) {
+          const { error: insertError } = await supabase.from("team_members").insert(validMemberships);
+          if (insertError) {
+            const { id: _id, ...studentSnapshot } = previousStudentForUndo;
+            await supabase.from("students").update(studentSnapshot).eq("id", entityId);
+            if (previousStudentMembershipsForUndo.length > 0) await supabase.from("team_members").insert(previousStudentMembershipsForUndo);
+            return NextResponse.json({ ok: false, error: insertError.message }, { status: 409 });
+          }
+        }
+      }
+    }
   } else if ((undoAction === "category.restore" || undoAction === "category.deactivate") && entityId) {
     const update = before
       ? { name: before.name, default_points: before.default_points, max_points: before.max_points, is_active: before.is_active }
@@ -360,6 +590,45 @@ export async function POST(request: Request) {
     }).eq("id", entityId).eq("version", expectedCurrentTeam.version).select("id").maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: error.code === "23505" ? 409 : 500 });
     if (!restored) return NextResponse.json({ ok: false, error: "This team changed before the undo could be applied. Reload the audit log and try again." }, { status: 409 });
+  } else if (undoAction === "practice_question.remove" && entityTable === "practice_test_questions" && entityId) {
+    const questionId = Number(entityId);
+    if (!Number.isInteger(questionId) || questionId <= 0) return NextResponse.json({ ok: false, error: "The practice question ID is invalid." }, { status: 409 });
+    const { data: current, error: loadError } = await supabase.from("practice_test_questions").select("*").eq("id", questionId).maybeSingle();
+    if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+    if (!current) return NextResponse.json({ ok: false, error: "This practice question no longer exists." }, { status: 409 });
+    if (after && String(current.updated_at ?? "") !== String(after.updated_at ?? "")) {
+      return NextResponse.json({ ok: false, error: "This question changed again. Undo its newer edit first." }, { status: 409 });
+    }
+    previousPracticeQuestion = current as Record<string, unknown>;
+    const { data: removed, error } = await supabase
+      .from("practice_test_questions")
+      .update({ is_active: false, updated_by: currentUser.id, updated_at: new Date().toISOString() })
+      .eq("id", questionId)
+      .eq("updated_at", String(current.updated_at))
+      .select("id")
+      .maybeSingle();
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!removed) return NextResponse.json({ ok: false, error: "This question changed before the undo could be applied. Reload the audit log and try again." }, { status: 409 });
+  } else if (undoAction === "practice_question.restore" && entityTable === "practice_test_questions" && entityId && before) {
+    const questionId = Number(entityId);
+    if (!Number.isInteger(questionId) || questionId <= 0 || Number(before.id) !== questionId) return NextResponse.json({ ok: false, error: "The practice question snapshot is invalid." }, { status: 409 });
+    const { data: current, error: loadError } = await supabase.from("practice_test_questions").select("*").eq("id", questionId).maybeSingle();
+    if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+    if (!current) return NextResponse.json({ ok: false, error: "This practice question no longer exists." }, { status: 409 });
+    if (after && String(current.updated_at ?? "") !== String(after.updated_at ?? "")) {
+      return NextResponse.json({ ok: false, error: "This question changed again. Undo its newer edit first." }, { status: 409 });
+    }
+    previousPracticeQuestion = current as Record<string, unknown>;
+    const { id: _id, ...snapshot } = before;
+    const { data: restored, error } = await supabase
+      .from("practice_test_questions")
+      .update(snapshot)
+      .eq("id", questionId)
+      .eq("updated_at", String(current.updated_at))
+      .select("id")
+      .maybeSingle();
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!restored) return NextResponse.json({ ok: false, error: "This question changed before the undo could be applied. Reload the audit log and try again." }, { status: 409 });
   } else if (undoAction === "library.remove" && entityTable === "library_items" && entityId) {
     const libraryId = Number(entityId);
     if (!Number.isInteger(libraryId) || libraryId <= 0) {
@@ -368,12 +637,19 @@ export async function POST(request: Request) {
     const { data: current, error: loadError } = await supabase.from("library_items").select("*").eq("id", libraryId).maybeSingle();
     if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
     if (!current) return NextResponse.json({ ok: false, error: "This library item no longer exists." }, { status: 409 });
+    if (after && String(current.updated_at ?? "") !== String(after.updated_at ?? "")) {
+      return NextResponse.json({ ok: false, error: "This library item changed again. Undo its newer edit first." }, { status: 409 });
+    }
     previousLibraryRow = current as Record<string, unknown>;
-    const { error } = await supabase
+    const { data: removed, error } = await supabase
       .from("library_items")
       .update({ is_active: false, updated_by: currentUser.id, updated_at: new Date().toISOString() })
-      .eq("id", libraryId);
+      .eq("id", libraryId)
+      .eq("updated_at", String(current.updated_at))
+      .select("id")
+      .maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!removed) return NextResponse.json({ ok: false, error: "This library item changed before the undo could be applied. Reload the audit log and try again." }, { status: 409 });
   } else if (undoAction === "library.restore" && entityTable === "library_items" && entityId && before) {
     const libraryId = Number(entityId);
     if (!Number.isInteger(libraryId) || libraryId <= 0 || Number(before.id) !== libraryId) {
@@ -382,10 +658,20 @@ export async function POST(request: Request) {
     const { data: current, error: loadError } = await supabase.from("library_items").select("*").eq("id", libraryId).maybeSingle();
     if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
     if (!current) return NextResponse.json({ ok: false, error: "This library item no longer exists." }, { status: 409 });
+    if (after && String(current.updated_at ?? "") !== String(after.updated_at ?? "")) {
+      return NextResponse.json({ ok: false, error: "This library item changed again. Undo its newer edit first." }, { status: 409 });
+    }
     previousLibraryRow = current as Record<string, unknown>;
     const { id: _id, ...snapshot } = before;
-    const { error } = await supabase.from("library_items").update(snapshot).eq("id", libraryId);
+    const { data: restored, error } = await supabase
+      .from("library_items")
+      .update(snapshot)
+      .eq("id", libraryId)
+      .eq("updated_at", String(current.updated_at))
+      .select("id")
+      .maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!restored) return NextResponse.json({ ok: false, error: "This library item changed before the undo could be applied. Reload the audit log and try again." }, { status: 409 });
   } else if (undoAction === "testoff.delete" && entityId) {
     const { error } = await supabase.from("testoff_sessions").delete().eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -453,6 +739,20 @@ export async function POST(request: Request) {
     if (previousLibraryRow) {
       const { id, ...snapshot } = previousLibraryRow;
       await supabase.from("library_items").update(snapshot).eq("id", Number(id));
+    }
+    if (previousPracticeQuestion) {
+      const { id, ...snapshot } = previousPracticeQuestion;
+      await supabase.from("practice_test_questions").update(snapshot).eq("id", Number(id));
+    }
+    if (previousStudentForUndo) {
+      const { id, ...snapshot } = previousStudentForUndo;
+      await supabase.from("students").update(snapshot).eq("id", String(id));
+      if (previousStudentMembershipsForUndo) {
+        await supabase.from("team_members").delete().eq("student_id", String(id));
+        if (previousStudentMembershipsForUndo.length > 0) {
+          await supabase.from("team_members").insert(previousStudentMembershipsForUndo);
+        }
+      }
     }
     return NextResponse.json({ ok: false, error: markError.message }, { status: 500 });
   }

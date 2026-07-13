@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame } from "lucide-react";
+import { ChevronDown, Flame } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { ReadinessBadge } from "@/components/ReadinessBadge";
 import type { PlayerDetail } from "@/lib/types";
@@ -11,12 +11,15 @@ interface ActivityPanelProps {
 
 export function ActivityPanel({ players }: ActivityPanelProps) {
   return (
-    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <Flame className="h-5 w-5 text-cyan-300" aria-hidden="true" />
-        <h2 className="text-lg font-semibold text-white">Practice activity</h2>
-      </div>
-      <div className="space-y-3">
+    <details open className="group/disclosure overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm">
+      <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 p-4 marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400">
+        <span className="flex min-w-0 items-center gap-2">
+          <Flame className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
+          <span className="text-lg font-semibold text-white">Practice activity</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 group-open/disclosure:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="space-y-3 border-t border-court-line p-4">
         {players.slice(0, 6).map((player, index) => (
           <Link
             key={player.id}
@@ -33,6 +36,6 @@ export function ActivityPanel({ players }: ActivityPanelProps) {
           </Link>
         ))}
       </div>
-    </section>
+    </details>
   );
 }

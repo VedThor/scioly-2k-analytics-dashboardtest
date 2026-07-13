@@ -14,7 +14,7 @@ export function AdminManageTabs({ roster, points, categories, accounts, initialT
     { id: "roster" as const, label: "Rosters" },
     { id: "points" as const, label: "Points" },
     { id: "categories" as const, label: "Point categories" },
-    { id: "accounts" as const, label: "Accounts and profiles" }
+    { id: "accounts" as const, label: "People" }
   ];
 
   useEffect(() => setTab(initialTab), [initialTab]);

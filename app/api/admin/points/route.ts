@@ -167,11 +167,12 @@ export async function POST(request: Request) {
 
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .select("id,name")
+    .select("*")
     .eq("id", studentId)
     .maybeSingle();
   if (studentError) return NextResponse.json({ ok: false, error: studentError.message }, { status: 500 });
   if (!student) return NextResponse.json({ ok: false, error: "Student not found." }, { status: 404 });
+  if (student.is_active === false) return NextResponse.json({ ok: false, error: "Restore this person before adding new points." }, { status: 409 });
 
   const now = new Date().toISOString();
   const { data: inserted, error: insertError } = await supabase
@@ -318,7 +319,7 @@ export async function PATCH(request: Request) {
 
     const [{ data: before, error: loadError }, { data: student, error: studentError }] = await Promise.all([
       supabase.from("grind_points").select("*").eq("id", pointId).maybeSingle(),
-      supabase.from("students").select("id,name").eq("id", studentId).maybeSingle()
+      supabase.from("students").select("*").eq("id", studentId).maybeSingle()
     ]);
     if (loadError || !before) {
       return NextResponse.json({ ok: false, error: loadError?.message ?? "Point log not found." }, { status: 404 });
@@ -328,6 +329,9 @@ export async function PATCH(request: Request) {
     }
     if (!student) {
       return NextResponse.json({ ok: false, error: "Student not found." }, { status: 404 });
+    }
+    if (student.is_active === false && String(before.student_id) !== studentId) {
+      return NextResponse.json({ ok: false, error: "Restore this person before moving a point log to them." }, { status: 409 });
     }
 
     const statusChanged = String(before.status) !== status;

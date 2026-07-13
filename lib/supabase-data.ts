@@ -95,6 +95,7 @@ function studentFromDb(row: DbRow): Student {
     potentialRating: optionalNumber(row.potential_rating),
     totalPoints: numberValue(row.total_points),
     profileEvents: stringArray(row.profile_events),
+    isArchived: row.is_active === false,
     prevOvr: numberValue(row.prev_ovr, numberValue(row.ovr_rating, 60)),
     prevAvgPlacement: optionalNumber(row.prev_avg_placement),
     lastSnapshotDate: stringValue(row.last_snapshot_date) || undefined,

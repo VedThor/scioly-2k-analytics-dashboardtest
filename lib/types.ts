@@ -29,6 +29,8 @@ export interface Student {
   potentialRating?: number;
   totalPoints: number;
   profileEvents?: string[];
+  /** Admin-only account state. Archived students are excluded from active workflows. */
+  isArchived?: boolean;
   prevOvr: number;
   prevAvgPlacement?: number;
   lastSnapshotDate?: string;

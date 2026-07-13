@@ -248,7 +248,7 @@ export async function loadTestoffAdminData(): Promise<TestoffAdminData> {
   const [seasonResult, eventResult, studentResult] = await Promise.all([
     supabase.from("seasons").select("id,name,start_date,end_date,is_active").order("start_date", { ascending: false }),
     supabase.from("events").select("id,name,category").order("name"),
-    supabase.from("students").select("id,name,grade").order("name")
+    supabase.from("students").select("*").order("name")
   ]);
 
   if (seasonResult.error) throw new Error(`Could not load seasons: ${seasonResult.error.message}`);
@@ -261,7 +261,7 @@ export async function loadTestoffAdminData(): Promise<TestoffAdminData> {
     name: stringValue(row.name, "Unknown event"),
     category: eventCategory(row.category)
   }));
-  const students: TestoffStudentOption[] = ((studentResult.data ?? []) as DbRow[]).map((row) => ({
+  const students: TestoffStudentOption[] = ((studentResult.data ?? []) as DbRow[]).filter((row) => row.is_active !== false).map((row) => ({
     id: stringValue(row.id),
     name: stringValue(row.name, "Unknown student"),
     grade: numberValue(row.grade, 9)

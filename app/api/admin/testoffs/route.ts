@@ -117,11 +117,11 @@ export async function POST(request: Request) {
 
   const { data: studentRows, error: studentError } = await supabase
     .from("students")
-    .select("id,name")
+    .select("*")
     .in("id", results.map((result) => result.studentId));
   if (studentError) return failure(studentError.message, 500);
-  if ((studentRows ?? []).length !== results.length) {
-    return failure("One or more selected students no longer exist.", 400);
+  if ((studentRows ?? []).length !== results.length || (studentRows ?? []).some((student) => student.is_active === false)) {
+    return failure("One or more selected students no longer exist or are archived.", 400);
   }
 
   const eventQuery = hasExistingEvent

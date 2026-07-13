@@ -23,7 +23,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Student, UserRole } from "@/lib/types";
 import { cn, roleMeets } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
@@ -353,7 +353,9 @@ export function AppShell({
         {children}
       </main>
 
-      <NavigationProgress />
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       <LiveRefresh />
       <OnboardingTour userId={currentUser.id} role={currentUser.role} />
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActivityPanel } from "@/components/dashboard/ActivityPanel";
 import { RosterTable } from "@/components/dashboard/RosterTable";
 import { TeamMiniPanel } from "@/components/dashboard/TeamMiniPanel";
@@ -58,18 +59,16 @@ export default async function DashboardPage() {
           <div className="border-t border-court-line px-4 py-3 text-sm leading-6 text-zinc-500">{readinessExplanation()} Practice alone never creates a readiness score.</div>
         </details>
 
+        <RosterTable players={players} />
+
         <TournamentInsightsPanel insights={tournamentInsights} />
 
-        <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <RosterTable players={players} />
-          <aside className="space-y-5">
-            <div id="quick-point-log" className="scroll-mt-24"><QuickPointLogForm currentUser={currentUser} /></div>
-            <ActivityPanel players={activePlayers} />
-            <TeamMiniPanel teams={teams} />
-          </aside>
+        <section className="grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-3" aria-label="Team workspace tools">
+          <div id="quick-point-log" className="min-w-0 scroll-mt-24"><QuickPointLogForm currentUser={currentUser} /></div>
+          <ActivityPanel players={activePlayers} />
+          <TeamMiniPanel teams={teams} />
         </section>
       </div>
     </AppShell>
   );
 }
-import Link from "next/link";

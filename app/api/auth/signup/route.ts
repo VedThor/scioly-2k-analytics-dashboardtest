@@ -72,12 +72,22 @@ export async function POST(request: Request) {
   }
 
   if (data.user?.id) {
-    await ensureStudentProfile({
+    const student = await ensureStudentProfile({
       authUserId: data.user.id,
       email,
       name,
       grade
     });
+    if (!student) {
+      await supabase.auth.signOut();
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "This profile has been archived. Ask a team administrator to restore it before signing up."
+        },
+        { status: 403 }
+      );
+    }
   }
 
   return NextResponse.json({

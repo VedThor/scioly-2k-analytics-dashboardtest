@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, getSupabaseServerClient, isDemoMode } from "@/lib/supabase";
+import { getAuthenticatedStudent } from "@/lib/auth";
+import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const sessionClient = await getSupabaseServerClient();
-  const session = sessionClient ? (await sessionClient.auth.getSession()).data.session : null;
-  if (!session && !isDemoMode()) {
+  const currentUser = await getAuthenticatedStudent();
+  if (!currentUser && !isDemoMode()) {
     return NextResponse.json({ ok: false, error: "Sign in before checking updates." }, { status: 401 });
   }
 

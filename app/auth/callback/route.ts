@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
+import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -19,25 +20,36 @@ export async function GET(request: NextRequest) {
   if (!supabase) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+  const authClient = supabase;
 
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type");
 
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+  async function redirectAfterSuccessfulAuth() {
+    const student = await getAuthenticatedStudent();
+    if (student) {
       return NextResponse.redirect(new URL(next, request.url));
+    }
+
+    await authClient.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=account_archived", request.url));
+  }
+
+  if (code) {
+    const { error } = await authClient.auth.exchangeCodeForSession(code);
+    if (!error) {
+      return redirectAfterSuccessfulAuth();
     }
   }
 
   if (tokenHash && type && allowedOtpTypes.has(type)) {
-    const { error } = await supabase.auth.verifyOtp({
+    const { error } = await authClient.auth.verifyOtp({
       token_hash: tokenHash,
       type: type as EmailOtpType
     });
     if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
+      return redirectAfterSuccessfulAuth();
     }
   }
 

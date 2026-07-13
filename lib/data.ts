@@ -122,7 +122,7 @@ export async function getProfileData(id: string) {
   const [currentUser, analytics] = await Promise.all([getCurrentUser(), getAnalyticsForRequest()]);
   const leaderboard = analytics.getLeaderboardPlayers();
   const player =
-    analytics.getPlayerDetail(id) ??
+    leaderboard.find((entry) => entry.id === id) ??
     (id === currentUser.id ? analytics.detailForStudent(currentUser, leaderboard.length + 1) : undefined);
 
   if (!player) {

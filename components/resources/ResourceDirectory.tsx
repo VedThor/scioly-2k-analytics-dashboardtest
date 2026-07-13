@@ -4,19 +4,15 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SciolyEventHub } from "@/lib/resource-data";
-import { cn } from "@/lib/utils";
-
-const readinessStyles: Record<SciolyEventHub["readiness"], string> = {
-  Loaded: "bg-emerald-300/10 text-emerald-200",
-  Building: "bg-amber-300/10 text-amber-200",
-  "Needs Uploads": "bg-red-300/10 text-red-200",
-};
 
 export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
 
   const categories = useMemo(() => ["All", ...Array.from(new Set(events.map((event) => event.category)))], [events]);
+  const seasonEvents = events.filter((event) => event.season === 2027);
+  const trialCount = seasonEvents.filter((event) => event.isTrial).length;
+  const teamLibraryCount = events.length - seasonEvents.length;
   const filteredEvents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return events.filter((event) => {
@@ -37,7 +33,9 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 id="resource-directory-heading" className="text-xl font-semibold text-white">Resources by event</h2>
-          <p className="mt-1 text-sm text-zinc-500">{filteredEvents.length} of {events.length} event libraries</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            {filteredEvents.length} of {events.length} libraries · {seasonEvents.length - trialCount} scored events{trialCount ? ` + ${trialCount} featured trial` : ""}{teamLibraryCount ? ` + ${teamLibraryCount} team archive` : ""}
+          </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <label className="relative sm:w-72">
@@ -77,13 +75,19 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
                   <div className="text-xs font-medium text-zinc-500">{event.category}</div>
                   <h3 className="mt-1 break-words text-lg font-semibold text-white group-hover:text-cyan-300">{event.name}</h3>
                 </div>
-                <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", readinessStyles[event.readiness])}>{event.readiness}</span>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  {event.isTrial ? <span className="rounded-full bg-amber-300/10 px-2.5 py-1 text-xs font-medium text-amber-200">Featured trial</span> : null}
+                  <span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-medium text-cyan-300">
+                    {event.season && event.rulesStatus ? `${event.season} ${event.rulesStatus.toLowerCase()}` : "Team library"}
+                  </span>
+                </div>
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-500">{event.tagline}</p>
-              <div className="mt-4 flex items-center gap-3 text-xs text-zinc-500">
-                <span>{event.resources.length} resources</span>
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                <span>{event.resources.length} vetted resources</span>
                 <span aria-hidden="true">·</span>
                 <span>{event.questions.length + event.tests.length} practice items</span>
+                {event.rulesStatus ? <><span aria-hidden="true">·</span><span>{event.season} {event.rulesStatus.toLowerCase()} scope</span></> : null}
               </div>
             </Link>
           ))}

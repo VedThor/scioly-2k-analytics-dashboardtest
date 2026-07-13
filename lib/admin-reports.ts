@@ -171,6 +171,14 @@ function teamHref(player: PlayerDetail) {
   return player.teamId ? `/teams?team=${encodeURIComponent(player.teamDesignation)}` : "/teams";
 }
 
+function profileHref(player: PlayerDetail) {
+  return player.isArchived ? undefined : `/profile/${player.id}`;
+}
+
+function playerLabel(player: PlayerDetail) {
+  return player.isArchived ? `${player.name} (archived)` : player.name;
+}
+
 function statusTone(status: string): AdminReportCell["tone"] {
   const normalized = status.toLowerCase();
   if (normalized === "ready" || normalized === "approved") return "success";
@@ -240,9 +248,9 @@ function pointReport(players: PlayerDetail[], filters: AdminReportFilters) {
         id: `${player.id}:${entry.id}`,
         cells: {
           date: { value: displayDate(entry.date), tone: "muted" },
-          student: { value: player.name, href: `/profile/${player.id}` },
+          student: { value: playerLabel(player), href: profileHref(player) },
           team: { value: teamLabel(player), href: teamHref(player), tone: "muted" },
-          activity: { value: entry.activity, href: `/profile/${player.id}` },
+          activity: { value: entry.activity, href: profileHref(player) },
           points: { value: displayNumber(entry.points, 0), tone: entry.points >= 0 ? "accent" : "danger" },
           status: { value: `${entry.status.charAt(0).toUpperCase()}${entry.status.slice(1)}`, tone: statusTone(entry.status) },
           notes: { value: entry.notes || "—", tone: entry.notes ? "default" : "muted" },
@@ -291,13 +299,15 @@ function tournamentReport(players: PlayerDetail[], filters: AdminReportFilters) 
           date: { value: displayDate(entry.date), tone: "muted" },
           tournament: { value: entry.tournament },
           event: { value: entry.event },
-          student: { value: player.name, href: `/profile/${player.id}` },
+          student: { value: playerLabel(player), href: profileHref(player) },
           team: { value: teamLabel(player), href: teamHref(player), tone: "muted" },
           place: { value: String(entry.rank), tone: entry.isMedal ? "success" : "default" },
           medal: { value: entry.isMedal ? "Medal" : "—", tone: entry.isMedal ? "success" : "muted" },
           sos: { value: displayNumber(entry.sos, 2) },
           points: { value: displayNumber(entry.eventPoints, 0), tone: "accent" },
-          source: { value: "View history", href: `/profile/${player.id}`, tone: "accent" }
+          source: player.isArchived
+            ? { value: "Archived record", tone: "muted" }
+            : { value: "View history", href: profileHref(player), tone: "accent" }
         }
       }))
   ).sort((left, right) => Date.parse(right.cells.date.value) - Date.parse(left.cells.date.value));
@@ -350,7 +360,7 @@ async function testoffReport(players: PlayerDetail[], filters: AdminReportFilter
             season: { value: group.seasonName },
             event: { value: group.eventName, href: `/testoffs?season=${group.seasonId}&event=${group.eventId}` },
             session: { value: session.name },
-            student: { value: result.studentName, href: player ? `/profile/${result.studentId}` : undefined },
+            student: { value: player ? playerLabel(player) : result.studentName, href: player ? profileHref(player) : undefined },
             team: { value: player ? teamLabel(player) : "Unknown", href: player ? teamHref(player) : undefined, tone: "muted" },
             rawScore: { value: `${displayNumber(result.rawScore, 2)} / ${displayNumber(session.maxScore, 2)}` },
             rank: { value: String(result.rank), tone: result.rank <= 3 ? "success" : "default" },
@@ -492,11 +502,14 @@ function filterDescription(
 export async function buildAdminReport(input: AdminReportFilterInput): Promise<AdminReportData> {
   const filters = normalizeAdminReportFilters(input);
   const analytics = await getAnalyticsForRequest();
-  const players = analytics.getLeaderboardPlayers();
+  const activePlayers = analytics.getLeaderboardPlayers();
+  const players = filters.type === "readiness" || filters.type === "teams"
+    ? activePlayers
+    : analytics.getAllPlayerDetails();
   const teams = analytics.getTeamComparisons();
   const studentOptions = [...players]
     .sort((left, right) => left.name.localeCompare(right.name))
-    .map((player) => ({ id: player.id, label: player.name }));
+    .map((player) => ({ id: player.id, label: player.isArchived ? `${player.name} (archived)` : player.name }));
   const teamOptions = teams
     .map((team) => ({ id: team.id, label: `${team.schoolName} ${team.designation}` }))
     .sort((left, right) => left.label.localeCompare(right.label));
@@ -509,7 +522,7 @@ export async function buildAdminReport(input: AdminReportFilterInput): Promise<A
       : filters.type === "testoffs"
         ? await testoffReport(players, filters)
         : filters.type === "teams"
-          ? teamReport(teams, players, filters)
+          ? teamReport(teams, activePlayers, filters)
           : readinessReport(players, filters);
 
   return {

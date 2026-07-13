@@ -14,6 +14,7 @@ const testFormats = new Set(["Mini Test", "Full Test", "Testoff Set"]);
 
 interface LibraryInput {
   id?: number;
+  updatedAt?: string;
   eventSlug?: string;
   eventName?: string;
   kind?: LibraryItemKind;
@@ -94,8 +95,8 @@ function normalizeInput(body: LibraryInput): { value: NormalizedLibraryRow } | {
   if (!validUrl(url)) return { error: "Links must start with http:// or https://." } as const;
   if (kind === "question" && !answer) return { error: "Practice questions need an answer." } as const;
   if (kind === "guide" && !contentBody) return { error: "Guide text cannot be empty." } as const;
-  if ((kind === "resource" || kind === "test") && !url && !contentBody) {
-    return { error: `${kind === "test" ? "Practice tests" : "Resources"} need a link or usable text.` } as const;
+  if (kind === "resource" && !url && !contentBody) {
+    return { error: "Resources need a link or usable text." } as const;
   }
 
   return {
@@ -210,7 +211,13 @@ export async function POST(request: Request) {
     );
   }
   invalidateLibraryCache();
-  return NextResponse.json<LibraryMutationResponse>({ ok: true, item: libraryItemFromRow(data), message: `${normalized.value.title} added.` });
+  return NextResponse.json<LibraryMutationResponse>({
+    ok: true,
+    item: libraryItemFromRow(data),
+    message: normalized.value.kind === "test"
+      ? `${normalized.value.title} added. Use Edit questions to build the interactive test.`
+      : `${normalized.value.title} added.`
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -221,6 +228,12 @@ export async function PATCH(request: Request) {
   const id = Number(body?.id);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Choose a valid library item." }, { status: 400 });
+  }
+  const expectedUpdatedAt = typeof body?.updatedAt === "string" && Number.isFinite(new Date(body.updatedAt).getTime())
+    ? body.updatedAt
+    : "";
+  if (!expectedUpdatedAt) {
+    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Reload this library item before editing it." }, { status: 409 });
   }
   const normalized = normalizeInput(body ?? {});
   if ("error" in normalized) {
@@ -237,8 +250,15 @@ export async function PATCH(request: Request) {
     });
   }
 
-  const { data: before } = await supabase.from("library_items").select("*").eq("id", id).maybeSingle();
+  const { data: before, error: loadError } = await supabase.from("library_items").select("*").eq("id", id).maybeSingle();
+  if (loadError) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: loadError.message }, { status: 500 });
   if (!before) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Library item not found." }, { status: 404 });
+  if (String(before.updated_at) !== expectedUpdatedAt) {
+    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item changed in another session. Reload before saving." }, { status: 409 });
+  }
+  if (normalized.value.kind !== before.kind) {
+    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Item type cannot be changed after creation. Create a new item instead." }, { status: 409 });
+  }
 
   const update = {
     ...normalized.value,
@@ -246,10 +266,15 @@ export async function PATCH(request: Request) {
     updated_by: auth.currentUser.id,
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from("library_items").update(update).eq("id", id).select("*").single();
-  if (error || !data) {
-    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: error?.message ?? "Could not update the library item." }, { status: 500 });
-  }
+  const { data, error } = await supabase
+    .from("library_items")
+    .update(update)
+    .eq("id", id)
+    .eq("updated_at", expectedUpdatedAt)
+    .select("*")
+    .maybeSingle();
+  if (error) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item changed in another session. Reload before saving." }, { status: 409 });
 
   const auditError = await audit(request, {
     actorId: auth.currentUser.id,
@@ -275,31 +300,44 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const auth = await getOfficer();
   if (auth.response) return auth.response;
-  const body = await request.json().catch(() => null) as { id?: number } | null;
+  const body = await request.json().catch(() => null) as { id?: number; updatedAt?: string } | null;
   const id = Number(body?.id);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Choose a valid library item." }, { status: 400 });
+  }
+  const expectedUpdatedAt = typeof body?.updatedAt === "string" && Number.isFinite(new Date(body.updatedAt).getTime())
+    ? body.updatedAt
+    : "";
+  if (!expectedUpdatedAt) {
+    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Reload this library item before removing it." }, { status: 409 });
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
     return NextResponse.json<LibraryMutationResponse>({ ok: true, message: "Demo mode: item removed for this session.", persisted: false });
   }
-  const { data: before } = await supabase.from("library_items").select("*").eq("id", id).maybeSingle();
+  const { data: before, error: loadError } = await supabase.from("library_items").select("*").eq("id", id).maybeSingle();
+  if (loadError) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: loadError.message }, { status: 500 });
   if (!before) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Library item not found." }, { status: 404 });
+  if (String(before.updated_at) !== expectedUpdatedAt) {
+    return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item changed in another session. Reload before removing it." }, { status: 409 });
+  }
   if (before.is_active === false) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item is already removed." }, { status: 409 });
   }
 
   const updatedAt = new Date().toISOString();
-  const { error } = await supabase
+  const { data: after, error } = await supabase
     .from("library_items")
     .update({ is_active: false, updated_by: auth.currentUser.id, updated_at: updatedAt })
     .eq("id", id)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("updated_at", expectedUpdatedAt)
+    .select("*")
+    .maybeSingle();
   if (error) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: error.message }, { status: 500 });
+  if (!after) return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item changed in another session. Reload before removing it." }, { status: 409 });
 
-  const after = { ...before, is_active: false, updated_by: auth.currentUser.id, updated_at: updatedAt };
   const auditError = await audit(request, {
     actorId: auth.currentUser.id,
     action: "library.remove",
@@ -318,5 +356,5 @@ export async function DELETE(request: Request) {
     );
   }
   invalidateLibraryCache();
-  return NextResponse.json<LibraryMutationResponse>({ ok: true, message: `${String(before.title)} removed. You can restore it below.` });
+  return NextResponse.json<LibraryMutationResponse>({ ok: true, item: libraryItemFromRow(after), message: `${String(before.title)} removed. You can restore it below.` });
 }

@@ -38,7 +38,7 @@ async function loadParticipantCandidates(supabase: ReturnType<typeof getSupabase
   }
 
   const [studentResult, teamResult, membershipResult] = await Promise.all([
-    supabase.from("students").select("id,name,profile_events"),
+    supabase.from("students").select("*"),
     supabase.from("teams").select("id,team_designation"),
     supabase.from("team_members").select("team_id,student_id")
   ]);
@@ -46,11 +46,11 @@ async function loadParticipantCandidates(supabase: ReturnType<typeof getSupabase
   if (error) throw new Error(error.message);
   const teamDesignationById = new Map((teamResult.data ?? []).map((team) => [String(team.id), String(team.team_designation)]));
   const teamIdByStudent = new Map((membershipResult.data ?? []).map((membership) => [String(membership.student_id), String(membership.team_id)]));
-  return (studentResult.data ?? []).map((student) => ({
+  return (studentResult.data ?? []).filter((student) => student.is_active !== false).map((student) => ({
     id: String(student.id),
     name: String(student.name),
     teamDesignation: teamDesignationById.get(teamIdByStudent.get(String(student.id)) ?? "") ?? "-",
-    profileEvents: Array.isArray(student.profile_events) ? student.profile_events.filter((event): event is string => typeof event === "string") : []
+    profileEvents: Array.isArray(student.profile_events) ? student.profile_events.filter((event: unknown): event is string => typeof event === "string") : []
   } satisfies TournamentParticipantCandidate));
 }
 

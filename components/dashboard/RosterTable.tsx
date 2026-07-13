@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowDownUp, ArrowUp, Columns3, Download, Search, Trophy } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, ChevronDown, Columns3, Download, Search, Trophy } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { ReadinessBadge } from "@/components/ReadinessBadge";
 import type { PlayerDetail } from "@/lib/types";
@@ -89,18 +89,24 @@ export function RosterTable({ players }: RosterTableProps) {
 
   return (
     <>
-      <section id="team-roster" className="scroll-mt-24 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading" data-tour="roster">
-        <div className="border-b border-court-line p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
-                <Trophy className="h-4 w-4" aria-hidden="true" />
-                Team standings
-              </div>
-              <h2 id="roster-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">Team roster</h2>
-              <p className="mt-1 text-sm text-zinc-500">{sortedPlayers.length} of {players.length} students</p>
+      <details open id="team-roster" className="group/disclosure scroll-mt-24 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading" data-tour="roster">
+        <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-4 p-4 marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 sm:p-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
+              <Trophy className="h-4 w-4" aria-hidden="true" />
+              Team standings
             </div>
+            <h2 id="roster-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">Team roster</h2>
+            <p className="mt-1 text-sm text-zinc-500">{sortedPlayers.length} of {players.length} students</p>
+          </div>
+          <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition-colors group-open/disclosure:text-white">
+            <span className="hidden sm:inline">Roster details</span>
+            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open/disclosure:rotate-180" aria-hidden="true" />
+          </span>
+        </summary>
 
+        <div className="border-y border-court-line p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-end">
             <div className="flex flex-col gap-2 sm:flex-row">
               <label className="relative min-w-0 sm:w-64">
                 <span className="sr-only">Search students</span>
@@ -256,7 +262,7 @@ export function RosterTable({ players }: RosterTableProps) {
             <p className="mt-1 text-sm text-zinc-500">Try a different search or team filter.</p>
           </div>
         ) : null}
-      </section>
+      </details>
     </>
   );
 }

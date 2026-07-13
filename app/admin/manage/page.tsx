@@ -26,7 +26,14 @@ export default async function ManagePage({
           roster={<RosterManager rosters={rosters} />}
           points={<AdminPointManager students={students} initialPointId={initialPointId} />}
           categories={<CustomCategoryManager />}
-          accounts={<AccountManager students={students} />}
+          accounts={(
+            <AccountManager
+              students={students}
+              teams={rosters
+                .filter((roster) => roster.id !== "unassigned")
+                .map((roster) => ({ id: roster.id, label: roster.label }))}
+            />
+          )}
           initialTab={initialTab}
         />
       </div>

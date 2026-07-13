@@ -314,6 +314,11 @@ export function AdminPointManager({ students, initialPointId }: { students: Play
               <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600 sm:col-span-2">
                 Student
                 <select value={editing.studentId} onChange={(event) => setEditing({ ...editing, studentId: event.target.value })} className="w-full min-w-0 rounded-md border border-court-line bg-court-panel px-3 text-white">
+                  {!sortedStudents.some((student) => student.id === editing.studentId) ? (
+                    <option value={editing.studentId}>
+                      {rows.find((row) => row.id === editing.id)?.studentName ?? "Archived person"} (archived)
+                    </option>
+                  ) : null}
                   {sortedStudents.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
                 </select>
               </label>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { PracticeLibrary } from "@/components/practice/PracticeLibrary";
@@ -10,6 +11,7 @@ export default async function PracticePage() {
   const [currentUser, events] = await Promise.all([getCurrentUser(), getLibraryEvents()]);
   const questions = getAllPracticeQuestions(events);
   const tests = getAllPracticeTests(events);
+  const canManage = currentUser.role === "officer" || currentUser.role === "admin";
 
   return (
     <AppShell currentUser={currentUser}>
@@ -17,8 +19,8 @@ export default async function PracticePage() {
         <PageHeader
           label="Preparation"
           title="Practice library"
-          description="Find questions and practice tests across all active events. Open an event to see answers, explanations, and related resources."
-          actions={currentUser.role === "officer" || currentUser.role === "admin" ? (
+          description="Filter the full 2027 slate, answer team questions, or start an on-site MCQ/FRQ test. Published practice is added by your officers—there are no filler test items."
+          actions={canManage ? (
             <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
               Manage practice library
             </Link>
@@ -27,12 +29,11 @@ export default async function PracticePage() {
         <section className="grid gap-3 sm:grid-cols-3">
           <StatTile href="#practice-library" label="Questions" value={questions.length} detail="Topic checks" />
           <StatTile href="#practice-library" label="Practice tests" value={tests.length} detail="Mini, full, and testoff sets" />
-          <StatTile href="/resources" linkLabel="Open event libraries" label="Events covered" value={new Set(questions.map((question) => question.eventSlug)).size} detail="Active event libraries" />
+          <StatTile href="/resources" linkLabel="Open event libraries" label="Available event filters" value={events.length} detail="Full 2027 slate plus team libraries" />
         </section>
 
-        <PracticeLibrary questions={questions} tests={tests} />
+        <PracticeLibrary questions={questions} tests={tests} eventNames={events.map((event) => event.name)} canManage={canManage} />
       </div>
     </AppShell>
   );
 }
-import Link from "next/link";

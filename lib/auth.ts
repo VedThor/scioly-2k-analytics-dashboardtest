@@ -17,6 +17,7 @@ interface StudentRow {
   potential_rating?: number | string | null;
   total_points: number;
   profile_events?: string[] | null;
+  is_active?: boolean | null;
   prev_ovr?: number | string | null;
   prev_avg_placement?: number | string | null;
   last_snapshot_date?: string | null;
@@ -65,6 +66,7 @@ export function studentFromRow(row: StudentRow): Student {
     potentialRating: numberOrUndefined(row.potential_rating),
     totalPoints: row.total_points ?? 0,
     profileEvents: row.profile_events ?? [],
+    isArchived: row.is_active === false,
     prevOvr: Number(row.prev_ovr ?? row.ovr_rating ?? 60),
     prevAvgPlacement: numberOrUndefined(row.prev_avg_placement),
     lastSnapshotDate: row.last_snapshot_date ?? undefined,
@@ -90,6 +92,7 @@ export function baselineStudent(input: {
     buildRating: undefined,
     totalPoints: 0,
     profileEvents: [],
+    isArchived: false,
     prevOvr: 60,
     prevAvgPlacement: undefined,
     createdAt: new Date().toISOString()
@@ -97,7 +100,7 @@ export function baselineStudent(input: {
 }
 
 async function fetchStudentByAuthUser(authUserId: string, email: string) {
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseAdmin() ?? await getSupabaseServerClient();
   if (!supabase) return null;
 
   const byAuthUser = await supabase
@@ -107,12 +110,12 @@ async function fetchStudentByAuthUser(authUserId: string, email: string) {
     .maybeSingle();
 
   if (byAuthUser.data) {
-    return studentFromRow(byAuthUser.data as StudentRow);
+    return byAuthUser.data as StudentRow;
   }
 
-  const byEmail = await supabase.from("students").select("*").eq("email", email).maybeSingle();
+  const byEmail = await supabase.from("students").select("*").eq("email", email.trim().toLowerCase()).maybeSingle();
   if (byEmail.data) {
-    return studentFromRow(byEmail.data as StudentRow);
+    return byEmail.data as StudentRow;
   }
 
   return null;
@@ -124,33 +127,54 @@ export async function ensureStudentProfile(input: {
   name?: string | null;
   grade?: number | null;
 }) {
-  const existing = await fetchStudentByAuthUser(input.authUserId, input.email);
-  const defaultRole = defaultRoleForEmail(input.email);
-  if (existing) {
-    if (defaultRole === "admin" && existing.role !== "admin") {
+  const existingRow = await fetchStudentByAuthUser(input.authUserId, input.email);
+  if (existingRow?.is_active === false) {
+    // Archiving is an administrative access decision. A later sign-in or
+    // signup may attach its auth ID, but must never silently reactivate it or
+    // inherit a legacy elevated profile-only role.
+    if (!existingRow.auth_user_id) {
       const admin = getSupabaseAdmin();
       if (admin) {
-        const { data } = await admin
+        await admin
           .from("students")
-          .update({ role: "admin" })
-          .eq("id", existing.id)
-          .select("*")
-          .single();
-        if (data) return studentFromRow(data as StudentRow);
+          .update({
+            auth_user_id: input.authUserId,
+            role: defaultRoleForEmail(input.email) === "admin" ? "admin" : "viewer"
+          })
+          .eq("id", existingRow.id)
+          .eq("is_active", false);
       }
+    }
+    return null;
+  }
+  const existing = existingRow ? studentFromRow(existingRow) : null;
+  const defaultRole = defaultRoleForEmail(input.email);
+  if (existing) {
+    const admin = getSupabaseAdmin();
+    const updates: { auth_user_id?: string; role?: UserRole } = {};
+    if (!existingRow?.auth_user_id) {
+      updates.auth_user_id = input.authUserId;
+    }
+    if (defaultRole === "admin" && existing.role !== "admin") updates.role = "admin";
+    if (admin && Object.keys(updates).length > 0) {
+      const { data } = await admin
+        .from("students")
+        .update(updates)
+        .eq("id", existing.id)
+        .eq("is_active", true)
+        .select("*")
+        .single();
+      if (data) return studentFromRow(data as StudentRow);
     }
     return existing;
   }
 
   const admin = getSupabaseAdmin();
   if (!admin) {
-    return baselineStudent({
-      id: input.authUserId,
-      email: input.email,
-      name: input.name,
-      grade: input.grade,
-      role: defaultRole
-    });
+    // Without the service-role client we cannot distinguish a missing profile
+    // from an archived profile hidden by RLS. Fail closed instead of restoring
+    // access with a synthetic active profile.
+    return null;
   }
 
   const { data, error } = await admin
@@ -158,7 +182,7 @@ export async function ensureStudentProfile(input: {
     .upsert(
       {
         auth_user_id: input.authUserId,
-        email: input.email,
+        email: input.email.trim().toLowerCase(),
         name: input.name?.trim() || input.email.split("@")[0],
         grade: input.grade ?? null,
         role: defaultRole,
@@ -172,16 +196,11 @@ export async function ensureStudentProfile(input: {
     .single();
 
   if (error || !data) {
-    return baselineStudent({
-      id: input.authUserId,
-      email: input.email,
-      name: input.name,
-      grade: input.grade,
-      role: defaultRole
-    });
+    return null;
   }
 
-  return studentFromRow(data as StudentRow);
+  const createdOrLinked = data as StudentRow;
+  return createdOrLinked.is_active === false ? null : studentFromRow(createdOrLinked);
 }
 
 export async function getAuthenticatedStudent() {

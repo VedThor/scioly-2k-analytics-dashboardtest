@@ -406,9 +406,19 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   }
 
   let leaderboardCache: PlayerDetail[] | undefined;
+  let allPlayerDetailsCache: PlayerDetail[] | undefined;
+  function getAllPlayerDetails() {
+    if (allPlayerDetailsCache) return allPlayerDetailsCache;
+    allPlayerDetailsCache = dataset.students
+      .map((student) => detailForStudent(student))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return allPlayerDetailsCache;
+  }
+
   function getLeaderboardPlayers() {
     if (leaderboardCache) return leaderboardCache;
     leaderboardCache = dataset.students
+      .filter((student) => !student.isArchived)
       .map((student) => detailForStudent(student))
       .sort((a, b) => b.readinessScore - a.readinessScore || a.name.localeCompare(b.name))
       .map((student, index) => ({ ...student, rank: index + 1 }));
@@ -521,6 +531,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
 
   return {
     detailForStudent,
+    getAllPlayerDetails,
     getLeaderboardPlayers,
     getPlayerDetail,
     getApprovalQueue,
@@ -541,6 +552,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
 const demoAnalytics = createAnalytics(demoAnalyticsDataset);
 
 export const detailForStudent = demoAnalytics.detailForStudent;
+export const getAllPlayerDetails = demoAnalytics.getAllPlayerDetails;
 export const getLeaderboardPlayers = demoAnalytics.getLeaderboardPlayers;
 export const getPlayerDetail = demoAnalytics.getPlayerDetail;
 export const getApprovalQueue = demoAnalytics.getApprovalQueue;

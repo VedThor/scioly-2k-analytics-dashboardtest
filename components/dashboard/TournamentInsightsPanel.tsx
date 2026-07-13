@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Medal, Trophy, UsersRound } from "lucide-react";
+import { ChevronDown, Medal, Trophy, UsersRound } from "lucide-react";
 import type { TournamentResultInsights } from "@/lib/types";
 import { searchAnchor } from "@/lib/search-utils";
 import { formatNumber } from "@/lib/utils";
@@ -19,8 +19,8 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
   if (insights.uniqueResultCount === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="tournament-insights-heading">
-      <div className="flex flex-col gap-2 border-b border-court-line p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+    <details open className="group/disclosure overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="tournament-insights-heading">
+      <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-4 p-4 marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 sm:p-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
             <Trophy className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -33,9 +33,13 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
             {formatNumber(insights.uniqueResultCount)} unique event result{insights.uniqueResultCount === 1 ? "" : "s"}; partner credits from the same result are counted once here.
           </p>
         </div>
-      </div>
+        <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition-colors group-open/disclosure:text-white">
+          <span className="hidden sm:inline">Result details</span>
+          <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open/disclosure:rotate-180" aria-hidden="true" />
+        </span>
+      </summary>
 
-      <div className="grid min-w-0 gap-0 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-0 border-t border-court-line lg:grid-cols-2">
         <div className="min-w-0 p-4 sm:p-5 lg:border-r lg:border-court-line">
           <div className="mb-3 flex items-center gap-2">
             <Medal className="h-4 w-4 text-amber-200" aria-hidden="true" />
@@ -113,6 +117,6 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
           )}
         </div>
       </div>
-    </section>
+    </details>
   );
 }
