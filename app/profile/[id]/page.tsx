@@ -16,7 +16,11 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   return (
     <AppShell currentUser={currentUser}>
-      <PlayerProfile player={player} />
+      <PlayerProfile
+        player={player}
+        canWithdrawPoints={currentUser.id === player.id}
+        canRemovePoints={currentUser.role === "admin"}
+      />
     </AppShell>
   );
 }

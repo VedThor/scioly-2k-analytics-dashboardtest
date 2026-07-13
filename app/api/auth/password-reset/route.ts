@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getAppOrigin } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +22,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase is not configured." }, { status: 503 });
   }
 
-  const origin = getAppOrigin(request);
+  // Keep the PKCE verifier and recovery callback on the exact host that started the request.
+  const origin = new URL(request.url).origin;
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`
+    redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/reset-password?mode=update")}`
   });
 
   if (error) {

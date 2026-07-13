@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
@@ -250,7 +251,7 @@ export async function POST(request: Request) {
     return failure(resultError.message, 500);
   }
 
-  await supabase.from("audit_logs").insert({
+  const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_id: currentUser.id,
     action: "testoff.create",
     target: `${String(event.name)} / ${name}`,
@@ -276,6 +277,12 @@ export async function POST(request: Request) {
     is_reversible: true
   });
 
+  if (auditError) {
+    await supabase.from("testoff_sessions").delete().eq("id", session.id);
+    return failure("The testoff was rolled back because its undo record could not be saved.", 500);
+  }
+
+  invalidateAnalyticsCache();
   return NextResponse.json(
     {
       ok: true,
@@ -306,7 +313,7 @@ export async function DELETE(request: Request) {
 
   const { data: session, error: loadError } = await supabase
     .from("testoff_sessions")
-    .select("id,season_id,event_id,name,date,max_score,weight,notes")
+    .select("*")
     .eq("id", sessionId)
     .maybeSingle();
   if (loadError) return failure(loadError.message, 500);
@@ -321,7 +328,7 @@ export async function DELETE(request: Request) {
   const { error: deleteError } = await supabase.from("testoff_sessions").delete().eq("id", sessionId);
   if (deleteError) return failure(deleteError.message, 500);
 
-  await supabase.from("audit_logs").insert({
+  const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_id: currentUser.id,
     action: "testoff.delete",
     target: String(session.name),
@@ -334,6 +341,15 @@ export async function DELETE(request: Request) {
     is_reversible: true
   });
 
+  if (auditError) {
+    const { error: restoreSessionError } = await supabase.from("testoff_sessions").insert(session);
+    if (!restoreSessionError && results && results.length > 0) {
+      await supabase.from("testoff_results").insert(results);
+    }
+    return failure("The deletion was rolled back because its undo record could not be saved.", 500);
+  }
+
+  invalidateAnalyticsCache();
   return NextResponse.json({
     ok: true,
     message: `${String(session.name)} deleted. Re-enter the corrected scores from Enter Scores.`

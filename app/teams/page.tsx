@@ -3,7 +3,12 @@ import { PageHeader } from "@/components/PageHeader";
 import { TeamComparisonView } from "@/components/teams/TeamComparisonView";
 import { getTeamsPageData } from "@/lib/data";
 
-export default async function TeamsPage() {
+export default async function TeamsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
+  const { team } = await searchParams;
   const { currentUser, teams } = await getTeamsPageData();
 
   return (
@@ -12,9 +17,9 @@ export default async function TeamsPage() {
         <PageHeader
           label="Team overview"
           title="Teams and rosters"
-          description="Compare A, B, and C team ratings, strengths, and member assignments. Team ratings update when results, points, or rosters change."
+          description="Compare active team readiness, strengths, and member assignments. Team values update when results, points, or rosters change."
         />
-        <TeamComparisonView teams={teams} />
+        <TeamComparisonView teams={teams} initialTeamDesignation={team} />
       </div>
     </AppShell>
   );

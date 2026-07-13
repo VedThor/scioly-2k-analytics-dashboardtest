@@ -41,5 +41,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
+  const failurePath = next.startsWith("/reset-password")
+    ? "/reset-password?error=invalid_reset_link"
+    : "/login?error=auth_callback_failed";
+  return NextResponse.redirect(new URL(failurePath, request.url));
 }

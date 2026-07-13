@@ -1,5 +1,5 @@
 import type { TournamentImportPreview, TournamentParticipantCandidate } from "@/lib/types";
-import { normalizeName } from "@/lib/utils";
+import { normalizeEventName, normalizeName } from "@/lib/utils";
 
 export interface ParticipantSelection {
   studentIds: string[];
@@ -31,12 +31,12 @@ export function resolveTournamentParticipants(input: {
     }
 
     const issues: string[] = [];
-    const normalizedEvent = normalizeName(performance.eventName);
+    const normalizedEvent = normalizeEventName(performance.eventName);
     const sameTeam = performance.teamDesignation
       ? input.candidates.filter((candidate) => candidate.teamDesignation === performance.teamDesignation)
       : input.candidates;
     const eventCandidates = sameTeam.filter((candidate) =>
-      candidate.profileEvents.some((event) => normalizeName(event) === normalizedEvent)
+      candidate.profileEvents.some((event) => normalizeEventName(event) === normalizedEvent)
     );
     const selection = input.selections?.[performance.rowKey];
 
@@ -66,7 +66,7 @@ export function resolveTournamentParticipants(input: {
         if (performance.teamDesignation && candidate.teamDesignation !== performance.teamDesignation) {
           issues.push(`${candidate.name} is currently on Team ${candidate.teamDesignation}, not Team ${performance.teamDesignation}.`);
         }
-        if (!candidate.profileEvents.some((event) => normalizeName(event) === normalizedEvent)) {
+        if (!candidate.profileEvents.some((event) => normalizeEventName(event) === normalizedEvent)) {
           issues.push(`${candidate.name} does not currently list ${performance.eventName}.`);
         }
       }
@@ -89,7 +89,7 @@ export function resolveTournamentParticipants(input: {
       const selected: TournamentParticipantCandidate[] = [];
       const unmatchedSourceNames: string[] = [];
       for (const sourceName of performance.studentNames) {
-        const matches = input.candidates.filter((candidate) => normalizeName(candidate.name) === normalizeName(sourceName));
+        const matches = eventCandidates.filter((candidate) => normalizeName(candidate.name) === normalizeName(sourceName));
         if (matches.length === 1) selected.push(matches[0]);
         else unmatchedSourceNames.push(sourceName);
       }
@@ -121,7 +121,23 @@ export function resolveTournamentParticipants(input: {
       };
     }
 
-    blockers.push(`${performance.eventName}: confirm who competed for Team ${performance.teamDesignation || "?"}.`);
+    if (eventCandidates.length > 0) {
+      return {
+        ...performance,
+        studentNames: eventCandidates.map((candidate) => candidate.name),
+        studentName: eventCandidates.map((candidate) => candidate.name).join(", "),
+        participantResolution: {
+          status: "matched" as const,
+          method: "roster_event_suggestion" as const,
+          selected: eventCandidates,
+          candidates: eventCandidates,
+          unmatchedSourceNames: [],
+          issues: [...issues, `Matched from current Team ${performance.teamDesignation} members assigned to ${performance.eventName}. Review before importing.`]
+        }
+      };
+    }
+
+    blockers.push(`${performance.eventName}: confirm who competed for Team ${performance.teamDesignation || "unassigned"}.`);
     return {
       ...performance,
       participantResolution: {
@@ -130,9 +146,7 @@ export function resolveTournamentParticipants(input: {
         selected: eventCandidates,
         candidates: eventCandidates.length > 0 ? eventCandidates : sameTeam,
         unmatchedSourceNames: [],
-        issues: eventCandidates.length > 0
-          ? [...issues, `Suggested from current Team ${performance.teamDesignation} members assigned to ${performance.eventName}.`]
-          : [...issues, "No current team member is assigned to this event."]
+        issues: [...issues, "No current team member is assigned to this event."]
       }
     };
   });
@@ -141,7 +155,7 @@ export function resolveTournamentParticipants(input: {
   for (const performance of performances) {
     if (performance.participantResolution?.status !== "matched") continue;
     for (const candidate of performance.participantResolution.selected) {
-      const key = `${candidate.id}:${normalizeName(performance.eventName)}`;
+      const key = `${candidate.id}:${normalizeEventName(performance.eventName)}`;
       const prior = credited.get(key);
       if (prior && prior !== performance.rowKey) blockers.push(`${candidate.name} is matched to ${performance.eventName} more than once.`);
       credited.set(key, performance.rowKey);

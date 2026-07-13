@@ -1,0 +1,209 @@
+import type { SearchCandidate } from "@/lib/search-types";
+import type { UserRole } from "@/lib/types";
+
+const roleRank: Record<UserRole, number> = { viewer: 0, officer: 1, admin: 2 };
+
+const pageCandidates: SearchCandidate[] = [
+  {
+    id: "page:dashboard",
+    kind: "page",
+    group: "Pages",
+    title: "Dashboard",
+    subtitle: "Team readiness, roster, recent preparation, and activity",
+    href: "/dashboard",
+    keywords: ["home", "overview", "readiness", "leaderboard", "roster", "students", "30 day points"],
+    minimumRole: "viewer",
+    quickRank: 3
+  },
+  {
+    id: "page:points",
+    kind: "page",
+    group: "Quick actions",
+    title: "Log practice",
+    subtitle: "Submit points or review and withdraw your entries",
+    href: "/points",
+    keywords: ["points", "study", "practice log", "submit", "minutes", "build testing", "history", "withdraw"],
+    minimumRole: "viewer",
+    quickRank: 1
+  },
+  {
+    id: "page:teams",
+    kind: "page",
+    group: "Pages",
+    title: "Teams and rosters",
+    subtitle: "Compare active team assignments",
+    href: "/teams",
+    keywords: ["teams", "rosters", "members", "compare", "team readiness", "assignments"],
+    minimumRole: "viewer",
+    quickRank: 5
+  },
+  {
+    id: "page:testoffs",
+    kind: "page",
+    group: "Pages",
+    title: "Testoff rankings",
+    subtitle: "Weighted scores, sessions, seasons, and event rankings",
+    href: "/testoffs",
+    keywords: ["testoff", "tryout", "scores", "rankings", "weighted", "composite", "season", "session"],
+    minimumRole: "viewer",
+    quickRank: 6
+  },
+  {
+    id: "page:resources",
+    kind: "page",
+    group: "Pages",
+    title: "Event resources",
+    subtitle: "Notes, guides, cheat sheets, topics, and starter paths",
+    href: "/resources",
+    keywords: ["resources", "events", "notes", "guides", "cheat sheets", "starter", "study"],
+    minimumRole: "viewer",
+    quickRank: 4
+  },
+  {
+    id: "page:practice",
+    kind: "page",
+    group: "Pages",
+    title: "Practice library",
+    subtitle: "Questions, explanations, mini tests, and testoff sets",
+    href: "/practice",
+    keywords: ["practice", "questions", "answers", "tests", "quiz", "rookie", "pro", "all star"],
+    minimumRole: "viewer",
+    quickRank: 7
+  },
+  {
+    id: "admin:approve",
+    kind: "page",
+    group: "Administration",
+    title: "Approval queue",
+    subtitle: "Approve or reject submitted practice points",
+    href: "/admin/approve",
+    keywords: ["approve", "reject", "pending", "review points", "officer"],
+    minimumRole: "officer",
+    quickRank: 8
+  },
+  {
+    id: "admin:testoffs",
+    kind: "page",
+    group: "Administration",
+    title: "Enter testoff scores",
+    subtitle: "Create sessions and publish ranked scores",
+    href: "/admin/testoffs",
+    keywords: ["enter scores", "testoff", "session", "raw score", "max score", "weight", "officer"],
+    minimumRole: "officer",
+    quickRank: 9
+  },
+  {
+    id: "admin:upload",
+    kind: "page",
+    group: "Administration",
+    title: "Import tournament results",
+    subtitle: "Upload Duosmium CSV results and match participants",
+    href: "/admin/upload",
+    keywords: ["import", "upload", "csv", "duosmium", "tournament", "results", "placements", "medals"],
+    minimumRole: "officer",
+    quickRank: 10
+  },
+  {
+    id: "admin:library",
+    kind: "page",
+    group: "Administration",
+    title: "Manage event library",
+    subtitle: "Add resources, guide text, practice questions, and tests",
+    href: "/admin/library",
+    keywords: ["resources", "library", "add guide", "practice question", "practice test", "event materials", "officer"],
+    minimumRole: "officer",
+    quickRank: 11
+  },
+  {
+    id: "admin:manage",
+    kind: "page",
+    group: "Administration",
+    title: "Manage team",
+    subtitle: "Rosters, point categories, accounts, roles, and event assignments",
+    href: "/admin/manage",
+    keywords: ["admin", "manage", "roster", "accounts", "roles", "categories", "assign students"],
+    minimumRole: "admin",
+    quickRank: 11
+  },
+  {
+    id: "admin:manage-rosters",
+    kind: "page",
+    group: "Administration",
+    title: "Edit team rosters",
+    subtitle: "Assign students to an active team or Unassigned",
+    href: "/admin/manage?tab=roster",
+    keywords: ["roster", "move students", "assign", "team a", "team b", "team c", "unassigned"],
+    minimumRole: "admin"
+  },
+  {
+    id: "admin:manage-points",
+    kind: "page",
+    group: "Administration",
+    title: "Manage all points",
+    subtitle: "Add approved points or remove an incorrect point record",
+    href: "/admin/manage?tab=points",
+    keywords: ["admin points", "manual points", "add points", "remove points", "point records", "adjustment"],
+    minimumRole: "admin"
+  },
+  {
+    id: "admin:manage-categories",
+    kind: "page",
+    group: "Administration",
+    title: "Manage point categories",
+    subtitle: "Create custom activities and point limits",
+    href: "/admin/manage?tab=categories",
+    keywords: ["point categories", "custom activity", "default points", "maximum points"],
+    minimumRole: "admin"
+  },
+  {
+    id: "admin:manage-accounts",
+    kind: "page",
+    group: "Administration",
+    title: "Manage accounts and profiles",
+    subtitle: "Edit names, grades, roles, and event assignments",
+    href: "/admin/manage?tab=accounts",
+    keywords: ["accounts", "profiles", "student roles", "viewer", "officer", "admin", "grade", "event assignments"],
+    minimumRole: "admin"
+  },
+  {
+    id: "admin:audit",
+    kind: "page",
+    group: "Administration",
+    title: "Audit log",
+    subtitle: "Review changes and restore reversible actions",
+    href: "/admin/audit",
+    keywords: ["audit", "activity log", "undo", "reverse", "restore", "admin changes"],
+    minimumRole: "admin",
+    quickRank: 12
+  }
+];
+
+export function pageSearchCandidatesForUser(role: UserRole, userId: string): SearchCandidate[] {
+  const personalized: SearchCandidate[] = [
+    {
+      id: "action:profile",
+      kind: "student",
+      group: "Quick actions",
+      title: "My profile",
+      subtitle: "Readiness, events, competition, and point history",
+      href: `/profile/${userId}`,
+      keywords: ["me", "my account", "profile"],
+      quickRank: 2
+    },
+    {
+      id: "action:tour",
+      kind: "action",
+      group: "Quick actions",
+      title: "Take a tour",
+      subtitle: "Show the website walkthrough",
+      action: "tour",
+      keywords: ["help", "onboarding", "walkthrough", "how to use"],
+      quickRank: 13
+    }
+  ];
+
+  return [
+    ...personalized,
+    ...pageCandidates.filter((candidate) => roleRank[role] >= roleRank[candidate.minimumRole ?? "viewer"])
+  ];
+}

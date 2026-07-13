@@ -33,7 +33,7 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
   }, [category, events, query]);
 
   return (
-    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6" aria-labelledby="resource-directory-heading">
+    <section className="min-w-0 rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6" aria-labelledby="resource-directory-heading" data-tour="resources">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 id="resource-directory-heading" className="text-xl font-semibold text-white">Resources by event</h2>
@@ -73,9 +73,9 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
               className="group rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated"
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs font-medium text-zinc-500">{event.category}</div>
-                  <h3 className="mt-1 text-lg font-semibold text-white group-hover:text-cyan-300">{event.name}</h3>
+                  <h3 className="mt-1 break-words text-lg font-semibold text-white group-hover:text-cyan-300">{event.name}</h3>
                 </div>
                 <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", readinessStyles[event.readiness])}>{event.readiness}</span>
               </div>

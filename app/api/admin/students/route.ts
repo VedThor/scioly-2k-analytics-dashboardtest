@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
@@ -39,7 +40,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true, message: "Static demo: account edit staged locally." });
   }
 
-  const { data: before } = await supabase.from("students").select("*").eq("id", body.id).maybeSingle();
+  const { data: before, error: loadError } = await supabase.from("students").select("*").eq("id", body.id).maybeSingle();
+  if (loadError) {
+    return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+  }
+  if (!before) {
+    return NextResponse.json({ ok: false, error: "Student account not found." }, { status: 404 });
+  }
   const { error } = await supabase
     .from("students")
     .update({
@@ -54,7 +61,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  await supabase.from("audit_logs").insert({
+  const { error: auditError } = await supabase.from("audit_logs").insert({
     actor_id: currentUser.id,
     action: "student.update",
     target: body.name.trim(),
@@ -73,5 +80,14 @@ export async function PATCH(request: Request) {
     is_reversible: true
   });
 
+  if (auditError) {
+    await supabase
+      .from("students")
+      .update({ name: before.name, grade: before.grade, role: before.role, profile_events: before.profile_events ?? [] })
+      .eq("id", body.id);
+    return NextResponse.json({ ok: false, error: "The account edit was rolled back because its undo record could not be saved." }, { status: 500 });
+  }
+
+  invalidateAnalyticsCache();
   return NextResponse.json({ ok: true, message: `${body.name.trim()} updated.` });
 }

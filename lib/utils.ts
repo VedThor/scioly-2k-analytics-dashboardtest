@@ -35,6 +35,13 @@ export function normalizeName(value: string) {
     .trim();
 }
 
+export function normalizeEventName(value: string) {
+  return normalizeName(value)
+    .replace(/\band\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const roleRank: Record<UserRole, number> = {
   viewer: 0,
   officer: 1,

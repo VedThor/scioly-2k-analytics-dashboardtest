@@ -214,6 +214,38 @@ export interface EventBreakdown {
   participationPoints: number;
 }
 
+export interface TournamentEventSummary {
+  eventId: number;
+  eventName: string;
+  category: EventCategory;
+  resultCount: number;
+  tournamentCount: number;
+  avgPlacement: number;
+  bestFinish: number;
+  medals: number;
+  totalEventPoints: number;
+  teamDesignations: string[];
+  participantNames: string[];
+}
+
+export interface TournamentPartnershipSummary {
+  participantNames: string[];
+  participantIds: string[];
+  eventNames: string[];
+  resultCount: number;
+  tournamentCount: number;
+  avgPlacement: number;
+  bestFinish: number;
+  medals: number;
+  totalEventPoints: number;
+}
+
+export interface TournamentResultInsights {
+  uniqueResultCount: number;
+  eventSummaries: TournamentEventSummary[];
+  partnershipSummaries: TournamentPartnershipSummary[];
+}
+
 export interface PlayerDetail extends Student {
   rank: number;
   teamId?: string;

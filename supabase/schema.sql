@@ -162,6 +162,45 @@ create table if not exists public.custom_point_categories (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.library_items (
+  id serial primary key,
+  event_slug text not null,
+  event_name text not null,
+  kind text not null check (kind in ('resource', 'guide', 'question', 'test')),
+  title text not null,
+  description text,
+  topic text,
+  difficulty text check (difficulty is null or difficulty in ('Rookie', 'Pro', 'All-Star')),
+  resource_type text,
+  url text,
+  body text,
+  answer text,
+  explanation text,
+  test_format text check (test_format is null or test_format in ('Mini Test', 'Full Test', 'Testoff Set')),
+  is_featured boolean not null default false,
+  is_active boolean not null default true,
+  created_by uuid references public.students(id) on delete set null,
+  updated_by uuid references public.students(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint library_items_event_slug_check check (event_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  constraint library_items_title_check check (length(trim(title)) > 0),
+  constraint library_items_content_check check (
+    (kind = 'question' and answer is not null and length(trim(answer)) > 0)
+    or (kind = 'guide' and body is not null and length(trim(body)) > 0)
+    or (kind in ('resource', 'test') and (
+      (url is not null and length(trim(url)) > 0)
+      or (body is not null and length(trim(body)) > 0)
+    ))
+  )
+);
+
+create index if not exists library_items_event_active_idx
+on public.library_items (event_slug, is_active, kind);
+
+create index if not exists library_items_updated_idx
+on public.library_items (updated_at desc);
+
 alter table public.grind_points add column if not exists custom_label text;
 alter table public.grind_points add column if not exists custom_category_id integer references public.custom_point_categories(id);
 alter table public.grind_points add column if not exists metadata jsonb not null default '{}'::jsonb;
@@ -358,7 +397,7 @@ values ('daily_point_log_limit', '10'::jsonb)
 on conflict (key) do nothing;
 
 insert into public.system_settings (key, value)
-values ('default_admin_emails', '["aaravsinhaofficial@gmail.com"]'::jsonb)
+values ('default_admin_emails', '["aaravsinha002@gmail.com"]'::jsonb)
 on conflict (key) do nothing;
 
 insert into public.custom_point_categories (name, default_points, max_points)
@@ -508,6 +547,14 @@ begin
     new.approved_at := null;
     new.approved_by := null;
     new.submitted_at := now();
+  end if;
+
+  -- Audit undo replays a previously validated row through the service role.
+  -- Preserve its historical value even if its category was later deactivated.
+  if coalesce(auth.role(), '') = 'service_role'
+     and coalesce((new.metadata ->> 'audit_restore')::boolean, false)
+  then
+    return new;
   end if;
 
   -- Standard activities are derived from their underlying evidence instead of
@@ -855,6 +902,14 @@ declare
   daily_limit integer;
   submitted_count integer;
 begin
+  -- Admin-created adjustments and audit restores are trusted server-side writes.
+  -- They must not consume or be blocked by a member's daily submission quota.
+  if coalesce(new.metadata ->> 'source', '') = 'admin_manual'
+     or coalesce((new.metadata ->> 'audit_restore')::boolean, false)
+  then
+    return new;
+  end if;
+
   select coalesce(
     (
       select (value #>> '{}')::integer
@@ -869,7 +924,8 @@ begin
   into submitted_count
   from public.grind_points
   where student_id = new.student_id
-    and submitted_at >= date_trunc('day', now());
+    and submitted_at >= date_trunc('day', now())
+    and coalesce(metadata ->> 'source', '') <> 'admin_manual';
 
   if submitted_count >= daily_limit then
     raise exception 'Daily point log limit reached';
@@ -1023,6 +1079,7 @@ alter table public.ovr_snapshots enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.system_settings enable row level security;
 alter table public.custom_point_categories enable row level security;
+alter table public.library_items enable row level security;
 alter table public.seasons enable row level security;
 alter table public.testoff_sessions enable row level security;
 alter table public.testoff_results enable row level security;
@@ -1178,6 +1235,26 @@ on public.custom_point_categories for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+drop policy if exists "library_items_select_logged_in" on public.library_items;
+create policy "library_items_select_logged_in"
+on public.library_items for select
+to authenticated
+using (is_active or public.is_officer_or_admin());
+
+drop policy if exists "library_items_officer_write" on public.library_items;
+drop policy if exists "library_items_officer_insert" on public.library_items;
+create policy "library_items_officer_insert"
+on public.library_items for insert
+to authenticated
+with check (public.is_officer_or_admin());
+
+drop policy if exists "library_items_officer_update" on public.library_items;
+create policy "library_items_officer_update"
+on public.library_items for update
+to authenticated
+using (public.is_officer_or_admin())
+with check (public.is_officer_or_admin());
 
 drop policy if exists "seasons_select_logged_in" on public.seasons;
 create policy "seasons_select_logged_in"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAppOrigin, safeInternalPath } from "@/lib/app-url";
+import { safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Auth client unavailable." }, { status: 500 });
   }
 
-  const origin = getAppOrigin(request);
+  // OAuth's PKCE verifier is stored in a cookie on the host that starts the
+  // flow. Keep the callback on that same host so custom domains and preview
+  // deployments can exchange the returned code successfully.
+  const origin = new URL(request.url).origin;
   const next = safeInternalPath(body.next);
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
   const { data, error } = await supabase.auth.signInWithOAuth({

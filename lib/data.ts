@@ -7,9 +7,10 @@ import {
   demoAnalyticsDataset,
   getCurrentDemoUser,
 } from "@/lib/analytics";
+import { loadCachedAnalyticsDataset } from "@/lib/analytics-cache";
 import { schoolName } from "@/lib/seed";
 import { hasSupabaseConfig, isDemoMode } from "@/lib/supabase";
-import { loadSupabaseAnalyticsDataset } from "@/lib/supabase-data";
+import { loadSupabaseAuditTrail } from "@/lib/supabase-data";
 import { roleMeets } from "@/lib/utils";
 import type { PlayerDetail, Student, TeamComparison, UserRole } from "@/lib/types";
 
@@ -21,7 +22,7 @@ export async function getAnalyticsForRequest() {
     return createAnalytics(demoAnalyticsDataset);
   }
 
-  return createAnalytics(await loadSupabaseAnalyticsDataset());
+  return createAnalytics(await loadCachedAnalyticsDataset());
 }
 
 export async function getCurrentUser() {
@@ -73,9 +74,22 @@ function visiblePlayer(player: PlayerDetail, currentUser: Student) {
     : { ...player, email: "", pointHistory: [] };
 }
 
-function visibleTeams(teams: TeamComparison[], currentUser: Student) {
+function summaryPlayer(player: PlayerDetail) {
+  return {
+    ...player,
+    competitionHistory: [],
+    pointHistory: [],
+    eventBreakdowns: [],
+    snapshots: []
+  };
+}
+
+function visibleTeams(teams: TeamComparison[], currentUser: Student, summariesOnly = false) {
   return teams.map((team) => {
-    const members = team.members.map((member) => visiblePlayer(member, currentUser));
+    const members = team.members.map((member) => {
+      const visible = visiblePlayer(member, currentUser);
+      return summariesOnly ? summaryPlayer(visible) : visible;
+    });
     const memberById = new Map(members.map((member) => [member.id, member]));
     return {
       ...team,
@@ -87,26 +101,25 @@ function visibleTeams(teams: TeamComparison[], currentUser: Student) {
 }
 
 export async function getDashboardData() {
-  const currentUser = await getCurrentUser();
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([getCurrentUser(), getAnalyticsForRequest()]);
   const players = includeCurrentUser(
     analytics.getLeaderboardPlayers(),
     currentUser,
     analytics.detailForStudent
-  ).map((player) => visiblePlayer(player, currentUser));
+  ).map((player) => summaryPlayer(visiblePlayer(player, currentUser)));
 
   return {
     currentUser,
     schoolName,
     players,
     activePlayers: [...players].sort((a, b) => b.thirtyDayPoints - a.thirtyDayPoints),
-    teams: visibleTeams(analytics.getTeamComparisons(), currentUser)
+    teams: visibleTeams(analytics.getTeamComparisons(), currentUser, true),
+    tournamentInsights: analytics.getTournamentResultInsights()
   };
 }
 
 export async function getProfileData(id: string) {
-  const currentUser = await getCurrentUser();
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([getCurrentUser(), getAnalyticsForRequest()]);
   const leaderboard = analytics.getLeaderboardPlayers();
   const player =
     analytics.getPlayerDetail(id) ??
@@ -123,46 +136,44 @@ export async function getProfileData(id: string) {
 }
 
 export async function getPointsPageData() {
-  const currentUser = await getCurrentUser();
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([getCurrentUser(), getAnalyticsForRequest()]);
   const player = analytics.getPlayerDetail(currentUser.id) ?? analytics.detailForStudent(currentUser);
   return { currentUser, player: visiblePlayer(player, currentUser) };
 }
 
 export async function getApprovePageData() {
-  const currentUser = await requireRole("officer");
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([requireRole("officer"), getAnalyticsForRequest()]);
   return {
     currentUser,
     queue: analytics.getApprovalQueue().map((entry) => ({
       ...entry,
-      student: visiblePlayer(entry.student, currentUser)
+      student: summaryPlayer(visiblePlayer(entry.student, currentUser))
     }))
   };
 }
 
 export async function getUploadPageData() {
   const currentUser = await requireRole("officer");
-  const analytics = await getAnalyticsForRequest();
-  return {
-    currentUser,
-    reference: analytics.getReferenceData()
-  };
+  return { currentUser };
 }
 
 export async function getManagePageData() {
-  const currentUser = await requireRole("admin");
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([requireRole("admin"), getAnalyticsForRequest()]);
   return {
     currentUser,
     rosters: analytics.getRosterSeedForDragDrop(),
-    teams: analytics.getTeamComparisons(),
-    students: analytics.getLeaderboardPlayers()
+    students: analytics.getLeaderboardPlayers().map(summaryPlayer)
   };
 }
 
 export async function getAuditPageData() {
   const currentUser = await requireRole("admin");
+  if (hasSupabaseConfig()) {
+    return {
+      currentUser,
+      logs: await loadSupabaseAuditTrail()
+    };
+  }
   const analytics = await getAnalyticsForRequest();
   return {
     currentUser,
@@ -171,10 +182,9 @@ export async function getAuditPageData() {
 }
 
 export async function getTeamsPageData() {
-  const currentUser = await getCurrentUser();
-  const analytics = await getAnalyticsForRequest();
+  const [currentUser, analytics] = await Promise.all([getCurrentUser(), getAnalyticsForRequest()]);
   return {
     currentUser,
-    teams: visibleTeams(analytics.getTeamComparisons(), currentUser)
+    teams: visibleTeams(analytics.getTeamComparisons(), currentUser, true)
   };
 }

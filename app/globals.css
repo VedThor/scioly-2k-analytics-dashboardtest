@@ -8,6 +8,7 @@
   --color-panel: 255 255 255;
   --color-elevated: 247 249 247;
   --color-line: 220 228 222;
+  --color-control-line: 119 132 124;
   --color-ink: 23 53 42;
   --color-on-primary: 255 255 255;
   --color-accent: 47 125 99;
@@ -16,6 +17,7 @@
   --color-warning: 154 91 19;
   --color-danger: 178 58 49;
   --color-danger-strong: 151 45 38;
+  --color-chart-secondary: 70 89 161;
   --color-shadow: 20 45 35;
   --color-zinc-50: 248 250 249;
   --color-zinc-100: 238 242 239;
@@ -36,6 +38,7 @@ html[data-theme="dark"] {
   --color-panel: 16 24 20;
   --color-elevated: 23 34 28;
   --color-line: 44 58 49;
+  --color-control-line: 98 119 105;
   --color-ink: 235 242 237;
   --color-on-primary: 7 18 13;
   --color-accent: 100 196 158;
@@ -44,6 +47,7 @@ html[data-theme="dark"] {
   --color-warning: 242 181 87;
   --color-danger: 255 137 128;
   --color-danger-strong: 255 164 156;
+  --color-chart-secondary: 174 186 242;
   --color-shadow: 0 0 0;
   --color-zinc-50: 18 27 22;
   --color-zinc-100: 27 39 32;
@@ -63,12 +67,16 @@ html[data-theme="dark"] {
 
 html {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   background: rgb(var(--color-background));
   scroll-behavior: smooth;
 }
 
 body {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   margin: 0;
   background: rgb(var(--color-background));
   color: rgb(var(--color-ink));
@@ -83,7 +91,39 @@ input,
 select,
 textarea {
   font: inherit;
+  max-width: 100%;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+select,
+textarea,
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]) {
   min-height: 44px;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+select,
+textarea {
+  border-color: rgb(var(--color-control-line));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(var(--color-zinc-500));
+  opacity: 1;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
 
 button,
@@ -100,7 +140,7 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid rgb(var(--color-accent) / 0.32);
+  outline: 3px solid rgb(var(--color-accent));
   outline-offset: 2px;
 }
 
@@ -167,11 +207,33 @@ html[data-theme="dark"] .app-overlay {
   background: rgb(0 0 0 / 0.68);
 }
 
+.global-search-dialog::backdrop {
+  background: rgb(7 18 13 / 0.58);
+  backdrop-filter: blur(6px);
+}
+
+html[data-theme="dark"] .global-search-dialog::backdrop {
+  background: rgb(0 0 0 / 0.72);
+}
+
+@keyframes navigation-progress {
+  0% { transform: translateX(-110%); }
+  55% { transform: translateX(140%); }
+  100% { transform: translateX(310%); }
+}
+
 @media (max-width: 640px) {
   input,
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+  select,
+  textarea {
+    width: 100%;
+    min-width: 0;
   }
 }
 

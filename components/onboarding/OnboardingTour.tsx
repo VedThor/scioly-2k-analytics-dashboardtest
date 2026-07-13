@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@/lib/types";
 
 interface TourStep {
@@ -11,16 +11,32 @@ interface TourStep {
   href?: string;
 }
 
+function findVisibleTarget(target: string) {
+  const matches = Array.from(document.querySelectorAll<HTMLElement>(`[data-tour="${target}"]`));
+  const visible = matches.find((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  });
+  if (visible) return visible;
+  if (target === "navigation" || target === "administration") {
+    return document.querySelector<HTMLElement>("[data-tour=\"navigation-trigger\"]");
+  }
+  return undefined;
+}
+
 export function OnboardingTour({ userId, role }: { userId: string; role: UserRole }) {
   const pathname = usePathname();
   const router = useRouter();
+  const dialogRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
-  const storageKey = `scioly-tour:v2:${userId}`;
+  const storageKey = `scioly-tour:v3:${userId}`;
   const activeKey = `scioly-tour-active:${userId}`;
   const indexKey = `scioly-tour-index:${userId}`;
   const steps = useMemo<TourStep[]>(() => [
     { title: "Everything starts in the navigation", body: "Team work, preparation, and role-specific administration are grouped so you always know where to go.", target: "navigation" },
+    { title: "Find anything quickly", body: "Use workspace search for features, students, teams, events, resources, and admin tools. You can also press Command K or Control K.", target: "search", href: "/dashboard" },
     { title: "Log your practice", body: "Every member—including officers and admins—submits their own preparation here. You can see pending and reviewed entries on the same page.", target: "points-form", href: "/points" },
     { title: "Check team readiness", body: "Search the roster, filter by team, and open any student to see the evidence behind their readiness score.", target: "roster", href: "/dashboard" },
     { title: "Prepare by event", body: "Resources and practice are organized by event, with real search and clear coverage status.", target: "resources", href: "/resources" },
@@ -32,7 +48,8 @@ export function OnboardingTour({ userId, role }: { userId: string; role: UserRol
     window.addEventListener("scioly:start-tour", start);
     const active = sessionStorage.getItem(activeKey) === "true";
     if (active) {
-      setIndex(Math.min(steps.length - 1, Number(sessionStorage.getItem(indexKey) ?? 0)));
+      const savedIndex = Number(sessionStorage.getItem(indexKey) ?? 0);
+      setIndex(Number.isFinite(savedIndex) ? Math.max(0, Math.min(steps.length - 1, savedIndex)) : 0);
       setOpen(true);
     }
     if (!active && pathname === "/dashboard" && localStorage.getItem(storageKey) !== "complete") {
@@ -48,13 +65,15 @@ export function OnboardingTour({ userId, role }: { userId: string; role: UserRol
     const step = steps[index];
     sessionStorage.setItem(indexKey, String(index));
     if (step.href && pathname !== step.href) {
+      window.dispatchEvent(new Event("scioly:navigation-start"));
       router.push(step.href);
       return;
     }
     const timer = window.setTimeout(() => {
-      const element = document.querySelector(`[data-tour="${step.target}"]`);
+      const element = findVisibleTarget(step.target);
       element?.classList.add("tour-highlight");
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
+      dialogRef.current?.focus({ preventScroll: true });
     }, 250);
     return () => window.clearTimeout(timer);
   }, [index, indexKey, open, pathname, router, steps]);
@@ -87,17 +106,20 @@ export function OnboardingTour({ userId, role }: { userId: string; role: UserRol
   const step = steps[index];
 
   return (
-    <aside className="fixed bottom-24 right-4 z-[70] w-[min(420px,calc(100vw-2rem))] rounded-md border border-court-line bg-court-panel p-5 shadow-panel lg:bottom-6 lg:right-6" role="dialog" aria-label="Website tour" aria-live="polite">
+    <>
+      <button type="button" tabIndex={-1} className="app-overlay fixed inset-0 z-[60] h-full w-full" onClick={finish} aria-label="Close website tour" />
+      <aside ref={dialogRef} tabIndex={-1} className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-[70] max-h-[calc(100dvh-7rem)] overflow-y-auto rounded-md border border-court-control bg-court-panel p-5 shadow-panel sm:left-auto sm:w-[min(420px,calc(100vw-2rem))] lg:bottom-6 lg:right-6" role="dialog" aria-modal="true" aria-label="Website tour" aria-live="polite">
       <div className="text-xs font-medium text-cyan-300">Website tour · {index + 1} of {steps.length}</div>
       <h2 className="mt-2 text-xl font-semibold text-white">{step.title}</h2>
       <p className="mt-2 text-sm leading-6 text-zinc-500">{step.body}</p>
       <div className="mt-5 flex items-center justify-between gap-3">
         <button type="button" onClick={finish} className="min-h-11 px-2 text-sm font-medium text-zinc-500 hover:text-white">Skip tour</button>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setIndex((current) => Math.max(0, current - 1))} disabled={index === 0} className="min-h-11 rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600 disabled:opacity-40">Back</button>
+          <button type="button" onClick={() => setIndex((current) => Math.max(0, current - 1))} disabled={index === 0} className="min-h-11 rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600 disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100">Back</button>
           <button type="button" onClick={next} className="min-h-11 rounded-md bg-white px-4 text-sm font-semibold text-black">{index === steps.length - 1 ? "Finish" : "Next"}</button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Loader2, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -17,6 +18,7 @@ interface ApprovalQueueProps {
 }
 
 export function ApprovalQueue({ queue }: ApprovalQueueProps) {
+  const router = useRouter();
   const [items, setItems] = useState(queue);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
           setItems((current) => current.filter((item) => item.id !== id));
         }
         setMessage(payload.message ?? payload.error ?? null);
+        router.refresh();
         setRejecting(null);
         setRejectionReason("");
       } catch (caught) {
@@ -56,10 +59,10 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
     <div className="rounded-md border border-court-line bg-court-panel">
       <div className="border-b border-court-line p-5">
         <div className="flex items-center gap-3"><h2 className="text-xl font-semibold text-white">Approval queue</h2><span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-300">{items.length} pending</span></div>
-        <p className="mt-1 text-sm text-zinc-400">Review submitted preparation. Every decision can be reversed by an admin from the audit log.</p>
+        <p className="mt-1 text-sm text-zinc-500">Review submitted preparation. Every decision can be reversed by an admin from the audit log.</p>
       </div>
 
-      {message ? <div className="m-4 rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
+      {message ? <div className="m-4 rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">{message}</div> : null}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] border-collapse text-left text-sm">
@@ -89,8 +92,8 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 font-bold text-zinc-200">{activityLabels[item.activityType]}</td>
-                  <td className="px-4 py-4 text-zinc-400">{formatDate(item.submittedAt)}</td>
+                  <td className="px-4 py-4 font-bold text-white">{activityLabels[item.activityType]}</td>
+                  <td className="px-4 py-4 text-zinc-500">{formatDate(item.submittedAt)}</td>
                   <td className="px-4 py-4 text-right font-medium text-white">
                     {item.minutes > 0 ? `${item.minutes} min` : item.quantity ? `${item.quantity} items` : "—"}
                   </td>
@@ -144,7 +147,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
             </label>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setRejecting(null)} className="rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600">Cancel</button>
-              <button type="button" onClick={() => decide(rejecting.id, "rejected", rejectionReason.trim())} disabled={!rejectionReason.trim() || isPending} className="rounded-md bg-red-400 px-4 text-sm font-semibold text-black disabled:opacity-50">Reject entry</button>
+              <button type="button" onClick={() => decide(rejecting.id, "rejected", rejectionReason.trim())} disabled={!rejectionReason.trim() || isPending} className="rounded-md bg-red-400 px-4 text-sm font-semibold text-black disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100">Reject entry</button>
             </div>
           </div>
         </div>

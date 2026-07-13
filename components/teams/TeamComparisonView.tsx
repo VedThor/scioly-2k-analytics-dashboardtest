@@ -9,10 +9,14 @@ import type { TeamComparison } from "@/lib/types";
 
 interface TeamComparisonViewProps {
   teams: TeamComparison[];
+  initialTeamDesignation?: string;
 }
 
-export function TeamComparisonView({ teams }: TeamComparisonViewProps) {
-  const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id ?? "");
+export function TeamComparisonView({ teams, initialTeamDesignation }: TeamComparisonViewProps) {
+  const initialTeam = teams.find(
+    (team) => team.designation.toLowerCase() === initialTeamDesignation?.toLowerCase()
+  );
+  const [selectedTeamId, setSelectedTeamId] = useState(initialTeam?.id ?? teams[0]?.id ?? "");
   const [compare, setCompare] = useState(false);
   const visibleTeams = compare ? teams : teams.filter((team) => team.id === selectedTeamId);
 
@@ -43,12 +47,12 @@ export function TeamComparisonView({ teams }: TeamComparisonViewProps) {
                 <div className="font-semibold tabular-nums text-white">{team.lastSos ? `${team.lastSos.toFixed(2)}x` : "—"}</div>
               </div>
               <div className="rounded-md bg-court-elevated p-3">
-                <Crown className="h-4 w-4 text-pink-300" aria-hidden="true" />
+                <Crown className="h-4 w-4 text-cyan-300" aria-hidden="true" />
                 <div className="mt-2 text-xs font-medium text-zinc-500">Top study</div>
                 <div className="truncate font-semibold tabular-nums text-white">{team.topStudy?.studyRating ?? "—"}</div>
               </div>
               <div className="rounded-md bg-court-elevated p-3">
-                <Medal className="h-4 w-4 text-purple-300" aria-hidden="true" />
+                <Medal className="h-4 w-4 text-amber-200" aria-hidden="true" />
                 <div className="mt-2 text-xs font-medium text-zinc-500">Top build</div>
                 <div className="truncate font-semibold tabular-nums text-white">{team.topBuild?.buildRating ?? "—"}</div>
               </div>

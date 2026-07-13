@@ -1,9 +1,67 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
+import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
+import { invalidateLibraryCache } from "@/lib/library-data";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+const pointActivityTypes = new Set([
+  "solo_study",
+  "partner_study",
+  "solo_practice_test",
+  "partner_practice_test",
+  "build_testing",
+  "id_specimens",
+  "custom_activity"
+]);
+
+function restorablePoint(before: Record<string, unknown>, entityId: string) {
+  const id = Number(before.id);
+  const points = Number(before.points);
+  const minutes = Number(before.minutes ?? 0);
+  const status = before.status;
+  const activityType = before.activity_type;
+  const studentId = before.student_id;
+  const isApproved = before.is_approved === true;
+  const approvedAt = before.approved_at ?? null;
+  const approvedBy = before.approved_by ?? null;
+
+  if (
+    !Number.isInteger(id) || id <= 0 || String(id) !== entityId ||
+    typeof studentId !== "string" || !studentId ||
+    typeof activityType !== "string" || !pointActivityTypes.has(activityType) ||
+    !Number.isInteger(points) || points < 1 || points > 500 ||
+    !Number.isInteger(minutes) || minutes < 0 || minutes > 240 ||
+    (status !== "pending" && status !== "approved" && status !== "rejected")
+  ) return null;
+
+  const validApprovalState = status === "pending"
+    ? !isApproved && approvedAt === null && approvedBy === null
+    : status === "approved"
+      ? isApproved && typeof approvedAt === "string" && typeof approvedBy === "string"
+      : !isApproved && typeof approvedAt === "string" && typeof approvedBy === "string";
+  if (!validApprovalState) return null;
+
+  return {
+    id,
+    student_id: studentId,
+    activity_type: activityType,
+    points,
+    minutes,
+    quantity: before.quantity ?? null,
+    custom_label: before.custom_label ?? null,
+    custom_category_id: before.custom_category_id ?? null,
+    metadata: before.metadata && typeof before.metadata === "object" ? before.metadata : {},
+    is_approved: isApproved,
+    status,
+    submitted_at: before.submitted_at,
+    approved_at: approvedAt,
+    approved_by: approvedBy,
+    notes: before.notes ?? null
+  };
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { auditId?: number; reason?: string };
@@ -45,6 +103,9 @@ export async function POST(request: Request) {
   const undoAction = String(audit.undo_action ?? "");
   const before = audit.payload_before && typeof audit.payload_before === "object" ? audit.payload_before as Record<string, unknown> : null;
   const after = audit.payload_after && typeof audit.payload_after === "object" ? audit.payload_after as Record<string, unknown> : null;
+  let restoredPointId: number | null = null;
+  let restoredTeamId: string | null = null;
+  let previousLibraryRow: Record<string, unknown> | null = null;
 
   if (undoAction === "tournament.delete" && entityId) {
     const { error } = await supabase.from("tournaments").delete().eq("id", Number(entityId));
@@ -55,9 +116,32 @@ export async function POST(request: Request) {
     const { data: pointLog, error: loadError } = await supabase.from("grind_points").select("status").eq("id", Number(entityId)).maybeSingle();
     if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
     if (!pointLog) return NextResponse.json({ ok: false, error: "This point submission no longer exists." }, { status: 409 });
-    if (pointLog.status !== "pending") return NextResponse.json({ ok: false, error: "Undo the officer review before removing this submission." }, { status: 409 });
+    if (pointLog.status !== "pending" && audit.action !== "points.admin_create") {
+      return NextResponse.json({ ok: false, error: "Undo the officer review before removing this submission." }, { status: 409 });
+    }
     const { error } = await supabase.from("grind_points").delete().eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "points.restore" && entityTable === "grind_points" && entityId && before) {
+    const restoredPoint = restorablePoint(before, entityId);
+    if (!restoredPoint) {
+      return NextResponse.json({ ok: false, error: "The deleted point snapshot is incomplete or invalid." }, { status: 409 });
+    }
+    const { data: existingPoint, error: existingError } = await supabase
+      .from("grind_points")
+      .select("id")
+      .eq("id", restoredPoint.id)
+      .maybeSingle();
+    if (existingError) return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
+    if (existingPoint) return NextResponse.json({ ok: false, error: "This point entry already exists." }, { status: 409 });
+    const { error } = await supabase.from("grind_points").insert({
+      ...restoredPoint,
+      metadata: {
+        ...(restoredPoint.metadata as Record<string, unknown>),
+        audit_restore: true
+      }
+    });
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
+    restoredPointId = restoredPoint.id;
   } else if ((undoAction === "points.unapprove" || undoAction === "points.restore_pending") && entityId && before) {
     const { error } = await supabase
       .from("grind_points")
@@ -89,6 +173,57 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   } else if (undoAction === "roster.restore" && before && Array.isArray(before.groups)) {
     const { error } = await supabase.rpc("replace_team_memberships", { roster_groups: before.groups });
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "team.restore" && entityTable === "teams" && entityId && before) {
+    const team = before.team && typeof before.team === "object" && !Array.isArray(before.team)
+      ? before.team as Record<string, unknown>
+      : null;
+    const memberIds = Array.isArray(before.memberIds)
+      ? before.memberIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+      : [];
+    if (!team || String(team.id ?? "") !== entityId || String(team.team_designation ?? "").toUpperCase() !== "C") {
+      return NextResponse.json({ ok: false, error: "The deleted C Team snapshot is incomplete or invalid." }, { status: 409 });
+    }
+    const { data: existingTeam, error: existingTeamError } = await supabase.from("teams").select("id").eq("id", entityId).maybeSingle();
+    if (existingTeamError) return NextResponse.json({ ok: false, error: existingTeamError.message }, { status: 500 });
+    if (existingTeam) return NextResponse.json({ ok: false, error: "C Team already exists." }, { status: 409 });
+    const { error: teamError } = await supabase.from("teams").insert(team);
+    if (teamError) return NextResponse.json({ ok: false, error: teamError.message }, { status: 409 });
+    if (memberIds.length > 0) {
+      const { error: memberError } = await supabase.from("team_members").insert(
+        memberIds.map((studentId) => ({ team_id: entityId, student_id: studentId }))
+      );
+      if (memberError) {
+        await supabase.from("teams").delete().eq("id", entityId);
+        return NextResponse.json({ ok: false, error: memberError.message }, { status: 409 });
+      }
+    }
+    restoredTeamId = entityId;
+  } else if (undoAction === "library.remove" && entityTable === "library_items" && entityId) {
+    const libraryId = Number(entityId);
+    if (!Number.isInteger(libraryId) || libraryId <= 0) {
+      return NextResponse.json({ ok: false, error: "The library item ID is invalid." }, { status: 409 });
+    }
+    const { data: current, error: loadError } = await supabase.from("library_items").select("*").eq("id", libraryId).maybeSingle();
+    if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+    if (!current) return NextResponse.json({ ok: false, error: "This library item no longer exists." }, { status: 409 });
+    previousLibraryRow = current as Record<string, unknown>;
+    const { error } = await supabase
+      .from("library_items")
+      .update({ is_active: false, updated_by: currentUser.id, updated_at: new Date().toISOString() })
+      .eq("id", libraryId);
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "library.restore" && entityTable === "library_items" && entityId && before) {
+    const libraryId = Number(entityId);
+    if (!Number.isInteger(libraryId) || libraryId <= 0 || Number(before.id) !== libraryId) {
+      return NextResponse.json({ ok: false, error: "The library item snapshot is invalid." }, { status: 409 });
+    }
+    const { data: current, error: loadError } = await supabase.from("library_items").select("*").eq("id", libraryId).maybeSingle();
+    if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+    if (!current) return NextResponse.json({ ok: false, error: "This library item no longer exists." }, { status: 409 });
+    previousLibraryRow = current as Record<string, unknown>;
+    const { id: _id, ...snapshot } = before;
+    const { error } = await supabase.from("library_items").update(snapshot).eq("id", libraryId);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   } else if (undoAction === "testoff.delete" && entityId) {
     const { error } = await supabase.from("testoff_sessions").delete().eq("id", Number(entityId));
@@ -130,6 +265,16 @@ export async function POST(request: Request) {
     .eq("id", body.auditId);
 
   if (markError) {
+    if (restoredPointId !== null) {
+      await supabase.from("grind_points").delete().eq("id", restoredPointId);
+    }
+    if (restoredTeamId !== null) {
+      await supabase.from("teams").delete().eq("id", restoredTeamId);
+    }
+    if (previousLibraryRow) {
+      const { id, ...snapshot } = previousLibraryRow;
+      await supabase.from("library_items").update(snapshot).eq("id", Number(id));
+    }
     return NextResponse.json({ ok: false, error: markError.message }, { status: 500 });
   }
 
@@ -148,5 +293,7 @@ export async function POST(request: Request) {
     reversal_of: body.auditId
   });
 
+  invalidateAnalyticsCache();
+  if (entityTable === "library_items") invalidateLibraryCache();
   return NextResponse.json({ ok: true, message: `Reversed audit #${body.auditId}.` });
 }

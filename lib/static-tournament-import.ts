@@ -54,7 +54,12 @@ function splitStudentNames(value: string) {
     .split(/[;|/]/)
     .flatMap((part) => part.split(/\s*,\s*/))
     .map((name) => name.trim().replace(/^"+|"+$/g, ""))
-    .filter((name) => name.length > 1);
+    .filter((name) => name.length > 1 && !/^(?:\?+|none|n\/a|na|null|unknown)$/i.test(name));
+}
+
+function sanitizeImportValue(value: string) {
+  const trimmed = value.trim();
+  return /^(?:\?+|n\/?a|none|null|unknown|—)$/i.test(trimmed) ? "" : trimmed;
 }
 
 function parseCsv(rawInput: string) {
@@ -67,7 +72,7 @@ function parseCsv(rawInput: string) {
   return rows.slice(1).map((row) => {
     const record: Record<string, string> = {};
     headers.forEach((header, index) => {
-      record[header] = row[index] ?? "";
+      record[header] = sanitizeImportValue(row[index] ?? "");
     });
     return record;
   });

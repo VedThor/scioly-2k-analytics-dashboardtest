@@ -2,27 +2,37 @@ export type ResourceType = "Notes" | "Video" | "Cheat Sheet" | "Guide" | "Rules"
 export type Difficulty = "Rookie" | "Pro" | "All-Star";
 
 export interface SciolyResource {
+  libraryId?: number;
   title: string;
   type: ResourceType;
   topic: string;
   difficulty: Difficulty;
   description: string;
   recommended?: boolean;
+  url?: string;
+  body?: string;
+  managed?: boolean;
 }
 
 export interface SciolyQuestion {
+  libraryId?: number;
   topic: string;
   difficulty: Difficulty;
   question: string;
   answer: string;
   explanation: string;
+  managed?: boolean;
 }
 
 export interface SciolyTest {
+  libraryId?: number;
   title: string;
   format: "Mini Test" | "Full Test" | "Testoff Set";
   difficulty: Difficulty;
   description: string;
+  url?: string;
+  body?: string;
+  managed?: boolean;
 }
 
 export interface SciolyEventHub {
@@ -414,38 +424,38 @@ export function getSciolyEvent(slug: string) {
   return sciolyEvents.find((event) => event.slug === slug);
 }
 
-export function getResourceStats() {
-  const resources = sciolyEvents.flatMap((event) => event.resources);
-  const questions = sciolyEvents.flatMap((event) => event.questions);
-  const tests = sciolyEvents.flatMap((event) => event.tests);
+export function getResourceStats(events: SciolyEventHub[] = sciolyEvents) {
+  const resources = events.flatMap((event) => event.resources);
+  const questions = events.flatMap((event) => event.questions);
+  const tests = events.flatMap((event) => event.tests);
 
   return {
-    events: sciolyEvents.length,
+    events: events.length,
     resources: resources.length,
     questions: questions.length,
     tests: tests.length,
     averageCoverage: Math.round(
-      sciolyEvents.reduce((total, event) => total + event.coverageScore, 0) / sciolyEvents.length
+      events.reduce((total, event) => total + event.coverageScore, 0) / Math.max(1, events.length)
     )
   };
 }
 
-export function getFeaturedResources() {
-  return sciolyEvents.flatMap((event) =>
+export function getFeaturedResources(events: SciolyEventHub[] = sciolyEvents) {
+  return events.flatMap((event) =>
     event.resources
       .filter((resource) => resource.recommended)
       .map((resource) => ({ ...resource, eventName: event.name, eventSlug: event.slug }))
   );
 }
 
-export function getAllPracticeQuestions() {
-  return sciolyEvents.flatMap((event) =>
+export function getAllPracticeQuestions(events: SciolyEventHub[] = sciolyEvents) {
+  return events.flatMap((event) =>
     event.questions.map((question) => ({ ...question, eventName: event.name, eventSlug: event.slug }))
   );
 }
 
-export function getAllPracticeTests() {
-  return sciolyEvents.flatMap((event) =>
+export function getAllPracticeTests(events: SciolyEventHub[] = sciolyEvents) {
+  return events.flatMap((event) =>
     event.tests.map((test) => ({ ...test, eventName: event.name, eventSlug: event.slug }))
   );
 }

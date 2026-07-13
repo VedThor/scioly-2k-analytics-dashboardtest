@@ -2,7 +2,7 @@ import { mockEvents, schoolName } from "@/lib/seed";
 import { calculateEventPoints, calculateMedalPoints, calculatePlacementScore } from "@/lib/rating";
 import { resolveSchoolsWithSos } from "@/lib/scioly-elo";
 import type { EventCategory, TournamentImportPerformance, TournamentImportPreview, TournamentSourceType } from "@/lib/types";
-import { normalizeName } from "@/lib/utils";
+import { normalizeEventName, normalizeName } from "@/lib/utils";
 
 export interface TournamentParseOptions {
   mode?: TournamentSourceType;
@@ -26,7 +26,7 @@ interface ParsedTournamentSeed {
   missingFields: string[];
 }
 
-const eventCategoryByName = new Map(mockEvents.map((event) => [normalizeName(event.name), event.category]));
+const eventCategoryByName = new Map(mockEvents.map((event) => [normalizeEventName(event.name), event.category]));
 const buildKeywords = ["tower", "robot", "wind", "build", "device", "vehicle", "bridge", "flight", "scrambler", "balsa"];
 
 const columnAliases = {
@@ -42,7 +42,7 @@ const columnAliases = {
 };
 
 function categoryForEvent(eventName: string): EventCategory {
-  const normalized = normalizeName(eventName);
+  const normalized = normalizeEventName(eventName);
   const exact = eventCategoryByName.get(normalized);
   if (exact) return exact;
   return buildKeywords.some((keyword) => normalized.includes(keyword)) ? "build" : "study";
@@ -50,6 +50,11 @@ function categoryForEvent(eventName: string): EventCategory {
 
 function sanitizeHeader(value: string) {
   return normalizeName(value).replace(/\s+/g, "");
+}
+
+function sanitizeImportValue(value: string) {
+  const trimmed = value.trim();
+  return /^(?:\?+|n\/?a|none|null|unknown|—)$/i.test(trimmed) ? "" : trimmed;
 }
 
 function parseCsv(rawInput: string) {
@@ -104,7 +109,7 @@ function rowsFromCsv(rawInput: string): CsvRow[] {
   return rows.slice(1).map((values, index) => {
     const mapped: Record<string, string> = {};
     headers.forEach((header, headerIndex) => {
-      mapped[header] = values[headerIndex] ?? "";
+      mapped[header] = sanitizeImportValue(values[headerIndex] ?? "");
     });
     return { values: mapped, index: index + 2 };
   });
@@ -113,7 +118,7 @@ function rowsFromCsv(rawInput: string): CsvRow[] {
 function pick(values: Record<string, string>, aliases: string[]) {
   for (const alias of aliases) {
     const key = sanitizeHeader(alias);
-    if (values[key]) return values[key].trim();
+    if (values[key]) return sanitizeImportValue(values[key]);
   }
   return "";
 }
@@ -155,11 +160,11 @@ function splitStudentNames(value: string) {
     .split(/[;|/]/)
     .flatMap((part) => part.split(/\s*,\s*/))
     .map((name) => name.trim().replace(/^"+|"+$/g, ""))
-    .filter((name) => name.length > 1 && !/^(none|n\/a|na)$/i.test(name));
+    .filter((name) => name.length > 1 && !/^(?:\?+|none|n\/a|na|null|unknown)$/i.test(name));
 }
 
 function inferTeamDesignation(rowTeam: string, school: string) {
-  const explicit = rowTeam.match(/\b([A-Z])\b/i)?.[1];
+  const explicit = rowTeam.match(/(?:^|\s)(?:team\s*)?([ABC])\s*$/i)?.[1];
   if (explicit) return explicit.toUpperCase();
 
   const fromSchool = school.match(/\b([ABC])\s*(team)?$/i)?.[1];
@@ -199,18 +204,28 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
   for (const row of rows) {
     const eventName = pick(row.values, columnAliases.event);
     const rank = parseRank(pick(row.values, columnAliases.rank));
-    const school = pick(row.values, columnAliases.school);
+    const teamField = pick(row.values, columnAliases.team);
+    const explicitSchool = pick(row.values, columnAliases.school);
+    const schoolFromTeam = teamField.replace(/(?:^|\s)(?:team\s*)?[ABC]\s*$/i, "").trim();
+    const school = explicitSchool || (schoolFromTeam && schoolFromTeam !== teamField ? schoolFromTeam : "");
     const participantField = pick(row.values, columnAliases.participants);
     const studentNames = splitStudentNames(participantField);
     const medalColumn = pick(row.values, columnAliases.medal);
     const rowMedalCutoff = Number(pick(row.values, columnAliases.medalCutoff)) || medalCutoff;
     const medalFromColumn = truthyMedal(medalColumn);
-    const teamDesignation = inferTeamDesignation(pick(row.values, columnAliases.team), school);
+    const teamDesignation = inferTeamDesignation(teamField, school);
 
     if (school) attendingSchools.add(school.replace(/\s+[ABC]$/i, "").trim());
     if (medalColumn) sawMedalColumn = true;
 
-    if (!eventName || !Number.isFinite(rank)) continue;
+    if (!eventName) {
+      warnings.push(`Row ${row.index} was skipped because its event is blank.`);
+      continue;
+    }
+    if (!Number.isFinite(rank)) {
+      warnings.push(`Row ${row.index} (${eventName}) was skipped because its rank is blank.`);
+      continue;
+    }
     if (studentNames.length === 0) warnings.push(`Row ${row.index} (${eventName}) needs participant matching.`);
 
     performances.push({

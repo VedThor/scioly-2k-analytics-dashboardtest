@@ -127,7 +127,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
         <ClipboardCheck className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
         <h2 className="mt-4 text-xl font-semibold text-white">Score entry is offline</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-500">
           This demo has no connected database. Configure Supabase on Vercel before entering real team scores.
         </p>
       </section>
@@ -139,7 +139,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
         <h2 className="mt-4 text-xl font-semibold text-white">Roster setup required</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-500">
           Add at least one student before creating a testoff session.
         </p>
       </section>
@@ -279,7 +279,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
             />
           </label>
 
-          <div className="rounded-md border border-court-line bg-court-elevated p-3 text-xs leading-5 text-zinc-400">
+          <div className="rounded-md border border-court-line bg-court-elevated p-3 text-xs leading-5 text-zinc-500">
             The server assigns descending ranks. Supabase normalizes each raw score to the maximum and applies this
             session’s weight.
           </div>
@@ -295,7 +295,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
               (seasonChoice === "new" && !newSeasonName.trim()) ||
               enteredCount === 0
             }
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Testoff
@@ -309,9 +309,9 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
         <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <div className="text-xs font-black uppercase text-pink-300">Roster Scores</div>
+            <div className="text-xs font-black uppercase text-cyan-300">Roster Scores</div>
             <h2 className="mt-1 text-xl font-semibold text-white">Enter raw scores</h2>
-            <p className="mt-1 text-sm text-zinc-400">Blank students are omitted. Zero is a valid entered score.</p>
+            <p className="mt-1 text-sm text-zinc-500">Blank students are omitted. Zero is a valid entered score.</p>
           </div>
           <div className="text-xs font-black uppercase text-zinc-500">{enteredCount} entered</div>
         </div>

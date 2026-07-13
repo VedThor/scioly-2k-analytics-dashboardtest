@@ -9,7 +9,14 @@ import { roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function TestoffsPage() {
+export default async function TestoffsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ season?: string; event?: string }>;
+}) {
+  const search = await searchParams;
+  const initialSeasonId = Number(search.season);
+  const initialEventId = Number(search.event);
   const currentUser = await getCurrentUser();
   const data = await loadTestoffDashboardData();
   const selectedSeasonId = data.activeSeasonId ?? data.eventRankings[0]?.seasonId;
@@ -51,7 +58,12 @@ export default async function TestoffsPage() {
           </div>
         </details>
 
-        <TestoffRankings data={data} canManage={roleMeets(currentUser.role, "officer")} />
+        <TestoffRankings
+          data={data}
+          canManage={roleMeets(currentUser.role, "officer")}
+          initialSeasonId={Number.isInteger(initialSeasonId) && initialSeasonId > 0 ? initialSeasonId : undefined}
+          initialEventId={Number.isInteger(initialEventId) && initialEventId > 0 ? initialEventId : undefined}
+        />
       </div>
     </AppShell>
   );

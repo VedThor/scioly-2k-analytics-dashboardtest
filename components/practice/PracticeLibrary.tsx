@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SciolyQuestion, SciolyTest } from "@/lib/resource-data";
+import { searchAnchor } from "@/lib/search-utils";
 
 type Question = SciolyQuestion & { eventName: string; eventSlug: string };
 type Test = SciolyTest & { eventName: string; eventSlug: string };
@@ -20,7 +21,7 @@ export function PracticeLibrary({ questions, tests }: { questions: Question[]; t
     : tests.filter((item) => (eventName === "All" || item.eventName === eventName) && (difficulty === "All" || item.difficulty === difficulty) && (!normalized || `${item.title} ${item.description} ${item.eventName}`.toLowerCase().includes(normalized)));
 
   return (
-    <section className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm">
+    <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" data-tour="practice-library">
       <div className="space-y-4 border-b border-court-line p-4 sm:p-5">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Practice type">
           <button type="button" onClick={() => setView("questions")} className={`rounded-md px-4 text-sm font-medium ${view === "questions" ? "bg-white text-black" : "bg-court-elevated text-zinc-600"}`} role="tab" aria-selected={view === "questions"}>Questions ({questions.length})</button>
@@ -38,11 +39,11 @@ export function PracticeLibrary({ questions, tests }: { questions: Question[]; t
         {items.map((item) => {
           const isQuestion = "question" in item;
           return (
-            <Link key={isQuestion ? `${item.eventSlug}-${item.question}` : `${item.eventSlug}-${item.title}`} href={`/resources/${item.eventSlug}`} className="rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
+            <Link key={isQuestion ? `${item.eventSlug}-${item.question}` : `${item.eventSlug}-${item.title}`} href={`/resources/${item.eventSlug}#${isQuestion ? `question-${searchAnchor(item.question)}` : `test-${searchAnchor(item.title)}`}`} className="min-w-0 rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
               <div className="text-xs font-medium text-cyan-300">{item.eventName} · {item.difficulty}</div>
-              <h3 className="mt-2 font-semibold leading-6 text-white">{isQuestion ? item.question : item.title}</h3>
+              <h3 className="mt-2 break-words font-semibold leading-6 text-white">{isQuestion ? item.question : item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-zinc-500">{isQuestion ? `Topic: ${item.topic}` : item.description}</p>
-              <p className="mt-3 text-xs font-medium text-cyan-300">Open event resources →</p>
+              <p className="mt-3 text-sm font-medium text-cyan-300">{isQuestion ? "Answer this question" : "Open test details"} →</p>
             </Link>
           );
         })}

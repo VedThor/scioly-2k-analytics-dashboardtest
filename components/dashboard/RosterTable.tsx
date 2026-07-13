@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowDownUp, ArrowUp, Columns3, Download, Search, Trophy } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { ReadinessBadge } from "@/components/ReadinessBadge";
-import { PlayerProfile } from "@/components/profile/PlayerProfile";
 import type { PlayerDetail } from "@/lib/types";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -46,7 +46,6 @@ export function RosterTable({ players }: RosterTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [showAllColumns, setShowAllColumns] = useState(false);
-  const [activePlayer, setActivePlayer] = useState<PlayerDetail | null>(null);
 
   const teamOptions = useMemo(
     () => Array.from(new Set(players.map((player) => player.teamDesignation))).sort(),
@@ -199,13 +198,13 @@ export function RosterTable({ players }: RosterTableProps) {
                     if (column.key === "rank") return <td key={column.key} className="px-4 py-3 text-sm tabular-nums text-zinc-500">#{player.rank}</td>;
                     if (column.key === "name") return (
                       <td key={column.key} className="px-4 py-3">
-                        <button type="button" onClick={() => setActivePlayer(player)} className="flex items-center gap-3 text-left">
+                        <Link href={`/profile/${player.id}`} className="flex items-center gap-3 text-left">
                           <Avatar name={player.name} src={player.profilePictureUrl} size="sm" />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-semibold text-white hover:text-cyan-300">{player.name}</span>
                             <span className="mt-0.5 block text-xs text-zinc-500">Team {player.teamDesignation} · Grade {player.grade}</span>
                           </span>
-                        </button>
+                        </Link>
                       </td>
                     );
                     if (column.key === "readiness") return <td key={column.key} className="px-4 py-3 text-right"><ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" /></td>;
@@ -224,10 +223,9 @@ export function RosterTable({ players }: RosterTableProps) {
 
         <div className="divide-y divide-court-line md:hidden">
           {sortedPlayers.map((player) => (
-            <button
+            <Link
               key={player.id}
-              type="button"
-              onClick={() => setActivePlayer(player)}
+              href={`/profile/${player.id}`}
               className="block w-full p-4 text-left transition-colors hover:bg-court-elevated"
             >
               <span className="flex items-start gap-3">
@@ -248,7 +246,7 @@ export function RosterTable({ players }: RosterTableProps) {
                   </span>
                 </span>
               </span>
-            </button>
+            </Link>
           ))}
         </div>
 
@@ -259,8 +257,6 @@ export function RosterTable({ players }: RosterTableProps) {
           </div>
         ) : null}
       </section>
-
-      {activePlayer ? <PlayerProfile player={activePlayer} mode="modal" onClose={() => setActivePlayer(null)} /> : null}
     </>
   );
 }

@@ -47,9 +47,9 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
       <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">System audit log</h2>
-          <p className="mt-1 text-sm text-zinc-400">Admin undo creates a new reversal entry and marks the original as reversed.</p>
+          <p className="mt-1 text-sm text-zinc-500">Admin undo creates a new reversal entry and marks the original as reversed.</p>
         </div>
-        {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
+        {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">{message}</div> : null}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] border-collapse text-left text-sm">
@@ -67,14 +67,15 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
           <tbody>
             {rows.map((log) => {
               const canUndo = currentUser.role === "admin" && log.isReversible && !log.isReversed && log.action !== "audit.undo";
+              const undoLabel = log.undoAction === "points.restore" ? "Restore" : "Undo";
               return (
                 <tr key={log.id} className="border-t border-court-line">
-                  <td className="px-4 py-4 text-zinc-400">{formatDate(log.createdAt)}</td>
+                  <td className="px-4 py-4 text-zinc-500">{formatDate(log.createdAt)}</td>
                   <td className="px-4 py-4 font-black text-white">{log.actorName}</td>
                   <td className="px-4 py-4 font-mono text-xs text-cyan-300">{log.action}</td>
-                  <td className="px-4 py-4 text-zinc-200">{log.target}</td>
-                  <td className="px-4 py-4 text-zinc-400">{log.reason ?? "-"}</td>
-                  <td className="px-4 py-4 text-zinc-400">
+                  <td className="px-4 py-4 text-white">{log.target}</td>
+                  <td className="px-4 py-4 text-zinc-500">{log.reason ?? "-"}</td>
+                  <td className="px-4 py-4 text-zinc-500">
                     {log.reversalOf ? `Reversal of #${log.reversalOf}` : log.isReversed ? "Reversed" : "Active"}
                   </td>
                   <td className="px-4 py-4">
@@ -82,10 +83,10 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
                       type="button"
                       onClick={() => undo(log)}
                       disabled={!canUndo || (isPending && undoingId === log.id)}
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-xs font-black uppercase text-zinc-300 transition hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-xs font-black uppercase text-zinc-600 transition hover:border-cyan-400 hover:text-white disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
                     >
                       {isPending && undoingId === log.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                      Undo
+                      {undoLabel}
                     </button>
                   </td>
                 </tr>

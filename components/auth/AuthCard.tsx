@@ -51,9 +51,11 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(() =>
-    searchParams.get("error") === "auth_callback_failed"
-      ? "Google sign-in could not be completed. Please try again or contact your team administrator."
-      : null
+    searchParams.get("error") === "invalid_reset_link"
+      ? "This password reset link is invalid or expired. Request a new link below."
+      : searchParams.get("error") === "auth_callback_failed"
+        ? "Sign-in could not be completed. Please try again or contact your team administrator."
+        : null
   );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";
@@ -230,7 +232,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
               {copy.action}
@@ -248,7 +250,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
               type="button"
               onClick={continueWithGoogle}
               disabled={isPending}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-semibold text-zinc-700 transition hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-semibold text-zinc-700 transition hover:border-cyan-400 hover:text-white disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
               <Chrome className="h-4 w-4" aria-hidden="true" />
               Continue with Google

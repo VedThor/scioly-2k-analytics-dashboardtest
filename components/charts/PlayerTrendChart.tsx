@@ -66,7 +66,7 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
             type="monotone"
             dataKey="avgPlacement"
             name="Avg Placement"
-            stroke="#6f61a8"
+            stroke="rgb(var(--color-chart-secondary))"
             strokeWidth={2}
             dot={{ r: 3 }}
           />
@@ -75,7 +75,7 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
             type="stepAfter"
             dataKey="medals"
             name="Medals"
-            stroke="#b27524"
+            stroke="rgb(var(--color-warning))"
             strokeWidth={2}
             dot={{ r: 3 }}
           />

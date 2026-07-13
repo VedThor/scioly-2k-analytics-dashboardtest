@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { mockStudents } from "@/lib/seed";
+import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
     studentsProcessed = typeof data === "number" ? data : 0;
+    invalidateAnalyticsCache();
   }
 
   return NextResponse.json({

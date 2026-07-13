@@ -3,12 +3,13 @@ import { PageHeader } from "@/components/PageHeader";
 import { PracticeLibrary } from "@/components/practice/PracticeLibrary";
 import { StatTile } from "@/components/StatTile";
 import { getCurrentUser } from "@/lib/data";
+import { getLibraryEvents } from "@/lib/library-data";
 import { getAllPracticeQuestions, getAllPracticeTests } from "@/lib/resource-data";
 
 export default async function PracticePage() {
-  const currentUser = await getCurrentUser();
-  const questions = getAllPracticeQuestions();
-  const tests = getAllPracticeTests();
+  const [currentUser, events] = await Promise.all([getCurrentUser(), getLibraryEvents()]);
+  const questions = getAllPracticeQuestions(events);
+  const tests = getAllPracticeTests(events);
 
   return (
     <AppShell currentUser={currentUser}>

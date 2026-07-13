@@ -9,6 +9,8 @@ import type { TestoffDashboardData, TestoffEventRanking } from "@/lib/types";
 interface TestoffRankingsProps {
   data: TestoffDashboardData;
   canManage?: boolean;
+  initialSeasonId?: number;
+  initialEventId?: number;
 }
 
 function formatDateOnly(value: string) {
@@ -29,7 +31,7 @@ function EmptyState({ configured }: { configured: boolean }) {
     <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
       <ClipboardList className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
       <h2 className="mt-4 text-xl font-semibold text-white">No testoffs yet</h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-500">
         {configured
           ? "An officer can enter the first testoff session from the score-entry page. Rankings will appear here automatically."
           : "This demo has no connected database. Testoff sessions will appear here after the Vercel deployment is connected to Supabase."}
@@ -46,7 +48,7 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
           <div className="text-xs font-black uppercase text-cyan-300">{event.eventCategory} event</div>
           <h2 className="mt-1 text-2xl font-semibold text-white">{event.eventName} rankings</h2>
         </div>
-        <div className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-400">
+        <div className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-500">
           {event.sessions.length} session{event.sessions.length === 1 ? "" : "s"} · {formatScore(event.totalWeight)}x total weight
         </div>
       </div>
@@ -76,7 +78,7 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
                   <td className="px-4 py-4 text-right text-xl font-black italic text-cyan-300">
                     {entry.compositeScore.toFixed(1)}
                   </td>
-                  <td className="px-4 py-4 text-right font-bold text-zinc-300">
+                  <td className="px-4 py-4 text-right font-bold text-zinc-600">
                     {entry.completedSessions}/{entry.totalSessions}
                   </td>
                   <td className="px-4 py-4 text-right font-black text-white">
@@ -117,12 +119,12 @@ function SessionCards({
   return (
     <section>
       <div className="mb-3 flex items-center gap-2">
-        <CalendarDays className="h-5 w-5 text-pink-300" aria-hidden="true" />
+        <CalendarDays className="h-5 w-5 text-cyan-300" aria-hidden="true" />
         <h2 className="text-lg font-semibold text-white">Session details</h2>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {event.sessions.map((session) => (
-          <article key={session.id} className="overflow-hidden rounded-md border border-court-line bg-court-panel">
+          <article id={`testoff-session-${session.id}`} key={session.id} className="scroll-mt-24 overflow-hidden rounded-md border border-court-line bg-court-panel">
             <div className="border-b border-court-line p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -130,10 +132,10 @@ function SessionCards({
                   <h3 className="mt-1 text-lg font-semibold text-white">{session.name}</h3>
                 </div>
                 <div className="flex gap-2">
-                  <span className="rounded-md border border-court-line bg-court-elevated px-2.5 py-1 text-[11px] font-black uppercase text-zinc-300">
+                  <span className="rounded-md border border-court-line bg-court-elevated px-2.5 py-1 text-[11px] font-black uppercase text-zinc-600">
                     Max {formatScore(session.maxScore)}
                   </span>
-                  <span className="rounded-md border border-pink-400/40 bg-pink-400/10 px-2.5 py-1 text-[11px] font-black uppercase text-pink-200">
+                  <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-black uppercase text-cyan-300">
                     {formatScore(session.weight)}x
                   </span>
                   {canManage ? (
@@ -141,7 +143,7 @@ function SessionCards({
                       type="button"
                       onClick={() => onDelete(session.id, session.name)}
                       disabled={deletingId === session.id}
-                      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-red-400/40 bg-red-400/10 px-2.5 text-[11px] font-black uppercase text-red-200 transition hover:bg-red-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-red-400/40 bg-red-400/10 px-2.5 text-[11px] font-black uppercase text-red-200 transition hover:bg-red-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
                       title="Delete this session and re-enter corrected scores. Admins can undo the deletion."
                     >
                       {deletingId === session.id ? (
@@ -154,7 +156,7 @@ function SessionCards({
                   ) : null}
                 </div>
               </div>
-              {session.notes ? <p className="mt-3 text-sm leading-6 text-zinc-400">{session.notes}</p> : null}
+              {session.notes ? <p className="mt-3 text-sm leading-6 text-zinc-500">{session.notes}</p> : null}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] border-collapse text-left text-sm">
@@ -172,10 +174,10 @@ function SessionCards({
                     <tr key={result.id} className="border-t border-court-line">
                       <td className="px-4 py-3 font-black text-zinc-500">#{result.rank}</td>
                       <td className="px-4 py-3 font-bold text-white">{result.studentName}</td>
-                      <td className="px-4 py-3 text-right font-black text-zinc-200">
+                      <td className="px-4 py-3 text-right font-black text-white">
                         {formatScore(result.rawScore)}/{formatScore(session.maxScore)}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-zinc-400">
+                      <td className="px-4 py-3 text-right font-bold text-zinc-500">
                         {((result.rawScore / session.maxScore) * 100).toFixed(1)}%
                       </td>
                       <td className="px-4 py-3 text-right font-black text-cyan-300">
@@ -193,11 +195,13 @@ function SessionCards({
   );
 }
 
-export function TestoffRankings({ data, canManage = false }: TestoffRankingsProps) {
+export function TestoffRankings({ data, canManage = false, initialSeasonId: requestedSeasonId, initialEventId: requestedEventId }: TestoffRankingsProps) {
   const router = useRouter();
-  const initialSeasonId = data.activeSeasonId ?? data.eventRankings[0]?.seasonId ?? data.seasons[0]?.id;
+  const validRequestedSeason = data.seasons.some((season) => season.id === requestedSeasonId) ? requestedSeasonId : undefined;
+  const initialSeasonId = validRequestedSeason ?? data.activeSeasonId ?? data.eventRankings[0]?.seasonId ?? data.seasons[0]?.id;
   const [seasonId, setSeasonId] = useStateNumber(initialSeasonId);
-  const [eventId, setEventId] = useStateNumber(data.eventRankings.find((group) => group.seasonId === initialSeasonId)?.eventId);
+  const requestedEvent = data.eventRankings.find((group) => group.seasonId === initialSeasonId && group.eventId === requestedEventId);
+  const [eventId, setEventId] = useStateNumber(requestedEvent?.eventId ?? data.eventRankings.find((group) => group.seasonId === initialSeasonId)?.eventId);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [correctionMessage, setCorrectionMessage] = useState<string | null>(null);
   const [, startCorrection] = useTransition();
@@ -238,7 +242,7 @@ export function TestoffRankings({ data, canManage = false }: TestoffRankingsProp
   return (
     <div className="space-y-5">
       {correctionMessage ? (
-        <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">
+        <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">
           {correctionMessage}
         </div>
       ) : null}
@@ -271,7 +275,7 @@ export function TestoffRankings({ data, canManage = false }: TestoffRankingsProp
             ))}
           </select>
         </label>
-        <div className="flex items-center gap-3 rounded-md border border-court-line bg-court-elevated px-4 py-3 text-sm text-zinc-400 md:max-w-md">
+        <div className="flex items-center gap-3 rounded-md border border-court-line bg-court-elevated px-4 py-3 text-sm text-zinc-500 md:max-w-md">
           <Scale className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
           Scores are normalized before weights are applied.
         </div>
@@ -291,7 +295,7 @@ export function TestoffRankings({ data, canManage = false }: TestoffRankingsProp
         <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
           <Trophy className="mx-auto h-9 w-9 text-zinc-600" aria-hidden="true" />
           <h2 className="mt-3 text-xl font-semibold text-white">No sessions this season</h2>
-          <p className="mt-2 text-sm text-zinc-400">Choose another season or ask an officer to enter a testoff.</p>
+          <p className="mt-2 text-sm text-zinc-500">Choose another season or ask an officer to enter a testoff.</p>
         </section>
       )}
     </div>

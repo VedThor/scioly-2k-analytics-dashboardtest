@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -16,16 +17,24 @@ import {
   NotebookPen,
   CircleHelp,
   Shield,
+  Search,
   Target,
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Student, UserRole } from "@/lib/types";
 import { cn, roleMeets } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { LiveRefresh } from "@/components/layout/LiveRefresh";
+import { NavigationProgress } from "@/components/layout/NavigationProgress";
+
+const GlobalSearch = dynamic(
+  () => import("@/components/search/GlobalSearch").then((module) => module.GlobalSearch),
+  { ssr: false }
+);
 
 interface AppShellProps {
   currentUser: Student;
@@ -63,6 +72,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { href: "/admin/approve", label: "Approval queue", icon: ClipboardCheck, role: "officer" },
       { href: "/admin/testoffs", label: "Enter testoff scores", icon: ClipboardList, role: "officer" },
       { href: "/admin/upload", label: "Import results", icon: FileUp, role: "officer" },
+      { href: "/admin/library", label: "Manage library", icon: BookOpen, role: "officer" },
       { href: "/admin/manage", label: "Manage team", icon: Shield, role: "admin" },
       { href: "/admin/audit", label: "Audit log", icon: History, role: "admin" },
     ],
@@ -136,6 +146,9 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutLabel, setShortcutLabel] = useState("Ctrl K");
+  const searchReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const currentPage = useMemo(() => {
     const match = navGroups.flatMap((group) => group.items).find((item) => isActivePath(pathname, item.href));
@@ -147,6 +160,41 @@ export function AppShell({
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setShortcutLabel(/Mac|iPhone|iPad/.test(window.navigator.platform) ? "⌘ K" : "Ctrl K");
+  }, []);
+
+  useEffect(() => {
+    const openFromKeyboard = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
+      const target = event.target;
+      const editable = target instanceof HTMLElement && (
+        target.matches("input, textarea, select") || target.isContentEditable
+      );
+      const commandShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      const slashShortcut = event.key === "/" && !editable && !event.metaKey && !event.ctrlKey && !event.altKey;
+      if (!commandShortcut && !slashShortcut) return;
+      if (!searchOpen && document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      if (searchOpen) return;
+      searchReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setMenuOpen(false);
+      setSearchOpen(true);
+    };
+    window.addEventListener("keydown", openFromKeyboard);
+    return () => window.removeEventListener("keydown", openFromKeyboard);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const openFromPage = () => {
+      searchReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setMenuOpen(false);
+      setSearchOpen(true);
+    };
+    window.addEventListener("scioly:open-search", openFromPage);
+    return () => window.removeEventListener("scioly:open-search", openFromPage);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -171,6 +219,17 @@ export function AppShell({
     }
   }
 
+  function openSearch(trigger: HTMLElement) {
+    searchReturnFocusRef.current = trigger;
+    setMenuOpen(false);
+    setSearchOpen(true);
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    window.requestAnimationFrame(() => searchReturnFocusRef.current?.focus());
+  }
+
   const sidebar = (
     <div className="flex h-full flex-col bg-court-panel">
       <div className="flex h-[76px] items-center border-b border-court-line px-5">
@@ -190,6 +249,16 @@ export function AppShell({
       </div>
 
       <div className="border-t border-court-line p-3">
+        <button
+          type="button"
+          onClick={(event) => openSearch(event.currentTarget)}
+          className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm text-zinc-600 transition-colors hover:bg-court-elevated hover:text-white"
+          aria-keyshortcuts="Meta+K Control+K"
+        >
+          <Search className="h-[18px] w-[18px]" aria-hidden="true" />
+          Search
+          <span className="ml-auto text-xs text-zinc-500">{shortcutLabel}</span>
+        </button>
         <ThemeToggle />
         <button
           type="button"
@@ -228,7 +297,7 @@ export function AppShell({
         {sidebar}
       </aside>
 
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-court-line bg-court-panel/80 px-4 backdrop-blur-md lg:px-8">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-court-line bg-court-panel/80 px-4 backdrop-blur-md lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -236,6 +305,7 @@ export function AppShell({
             className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-court-line text-zinc-600 lg:hidden"
             aria-label="Open navigation"
             aria-expanded={menuOpen}
+            data-tour="navigation-trigger"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -244,6 +314,28 @@ export function AppShell({
             <div className="hidden truncate text-xs text-zinc-500 sm:block">{schoolName}</div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={(event) => openSearch(event.currentTarget)}
+          className="mx-auto hidden h-10 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-md border border-court-control bg-court-elevated px-3 text-left text-sm text-zinc-500 transition hover:border-cyan-400 hover:text-white sm:flex"
+          aria-label="Search SciOly Tracker"
+          aria-keyshortcuts="Meta+K Control+K"
+        >
+          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Search pages, people, and resources</span>
+          <span className="ml-auto shrink-0 rounded border border-court-line bg-court-panel px-1.5 py-0.5 text-[11px] text-zinc-500">{shortcutLabel}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={(event) => openSearch(event.currentTarget)}
+          className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-md border border-court-line text-zinc-600 sm:hidden"
+          aria-label="Search SciOly Tracker"
+          aria-keyshortcuts="Meta+K Control+K"
+        >
+          <Search className="h-5 w-5" aria-hidden="true" />
+        </button>
 
         <Link
           href={`/profile/${currentUser.id}`}
@@ -255,11 +347,21 @@ export function AppShell({
         </Link>
       </header>
 
-      <main className="mx-auto w-full max-w-[1480px] px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8 lg:pb-10">
+      <main className="mx-auto w-full min-w-0 max-w-[1480px] overflow-x-clip px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-10">
         {children}
       </main>
 
+      <NavigationProgress />
+      <LiveRefresh />
       <OnboardingTour userId={currentUser.id} role={currentUser.role} />
+
+      {searchOpen ? (
+        <GlobalSearch
+          role={currentUser.role}
+          userId={currentUser.id}
+          onClose={closeSearch}
+        />
+      ) : null}
 
       {menuOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
@@ -283,7 +385,7 @@ export function AppShell({
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[72px] grid-cols-5 border-t border-court-line bg-court-panel px-1 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Quick navigation">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid min-h-[calc(72px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-court-line bg-court-panel px-1 pb-[env(safe-area-inset-bottom)] pt-1 lg:hidden" aria-label="Quick navigation">
         {mobileItems.map((item) => {
           const Icon = item.icon;
           const active = isActivePath(pathname, item.href);

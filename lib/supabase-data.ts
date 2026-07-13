@@ -130,6 +130,55 @@ async function loadAllRows(
   return rows;
 }
 
+export async function loadSupabaseAuditTrail(): Promise<AuditLogEntry[]> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("Cannot load the audit trail: SUPABASE_SERVICE_ROLE_KEY is missing.");
+  }
+
+  const auditRows: DbRow[] = [];
+  for (let start = 0; ; start += databasePageSize) {
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("id,actor_id,action,target,reason,ip_address,entity_table,entity_id,undo_action,is_reversible,reversed_at,reversed_by,reversal_of,created_at")
+      .order("created_at", { ascending: false })
+      .range(start, start + databasePageSize - 1);
+    if (error) throw new Error(`Could not load the audit trail: ${error.message}`);
+    const page = (data ?? []) as DbRow[];
+    auditRows.push(...page);
+    if (page.length < databasePageSize) break;
+  }
+
+  const studentResult = await supabase.from("students").select("id,name");
+  if (studentResult.error) throw new Error(`Could not load audit actors: ${studentResult.error.message}`);
+
+  const actorNames = new Map(
+    ((studentResult.data ?? []) as DbRow[]).map((row) => [stringValue(row.id), stringValue(row.name, "System")])
+  );
+
+  return auditRows.map((row) => {
+    const actorId = stringValue(row.actor_id);
+    return {
+      id: numberValue(row.id),
+      actorId,
+      actorName: actorNames.get(actorId) ?? "System",
+      action: stringValue(row.action),
+      target: stringValue(row.target),
+      reason: stringValue(row.reason) || undefined,
+      ipAddress: stringValue(row.ip_address, "server"),
+      entityTable: stringValue(row.entity_table) || undefined,
+      entityId: stringValue(row.entity_id) || undefined,
+      undoAction: stringValue(row.undo_action) || undefined,
+      isReversible: Boolean(row.is_reversible),
+      isReversed: Boolean(row.reversed_at),
+      reversedAt: stringValue(row.reversed_at) || undefined,
+      reversedBy: stringValue(row.reversed_by) || undefined,
+      reversalOf: optionalNumber(row.reversal_of),
+      createdAt: stringValue(row.created_at, new Date(0).toISOString())
+    };
+  });
+}
+
 export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
@@ -148,7 +197,6 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     performanceRows,
     pointRows,
     snapshotRows,
-    auditRows,
     seasonRows,
     testoffSessionRows,
     testoffResultRows
@@ -161,7 +209,6 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     loadAllRows(supabase, "performances"),
     loadAllRows(supabase, "grind_points"),
     loadAllRows(supabase, "ovr_snapshots"),
-    loadAllRows(supabase, "audit_logs"),
     loadAllRows(supabase, "seasons"),
     loadAllRows(supabase, "testoff_sessions"),
     loadAllRows(supabase, "testoff_results")
@@ -176,7 +223,6 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
   });
 
   const students = ((studentResult.data ?? []) as DbRow[]).map(studentFromDb);
-  const studentById = new Map(students.map((student) => [student.id, student]));
 
   const teams: Team[] = ((teamResult.data ?? []) as DbRow[]).map((row) => ({
     id: stringValue(row.id),
@@ -269,30 +315,6 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     recordedAt: stringValue(row.recorded_at, new Date(0).toISOString())
   }));
 
-  const auditLogs: AuditLogEntry[] = auditRows.map((row) => {
-    const actorId = stringValue(row.actor_id);
-    return {
-      id: numberValue(row.id),
-      actorId,
-      actorName: studentById.get(actorId)?.name ?? "System",
-      action: stringValue(row.action),
-      target: stringValue(row.target),
-      reason: stringValue(row.reason) || undefined,
-      ipAddress: stringValue(row.ip_address, "server"),
-      entityTable: stringValue(row.entity_table) || undefined,
-      entityId: stringValue(row.entity_id) || undefined,
-      payloadBefore: recordValue(row.payload_before),
-      payloadAfter: recordValue(row.payload_after),
-      undoAction: stringValue(row.undo_action) || undefined,
-      isReversible: Boolean(row.is_reversible),
-      isReversed: Boolean(row.reversed_at),
-      reversedAt: stringValue(row.reversed_at) || undefined,
-      reversedBy: stringValue(row.reversed_by) || undefined,
-      reversalOf: optionalNumber(row.reversal_of),
-      createdAt: stringValue(row.created_at, new Date(0).toISOString())
-    };
-  });
-
   const activeSeasonIds = new Set(
     seasonRows.filter((row) => Boolean(row.is_active)).map((row) => numberValue(row.id))
   );
@@ -323,7 +345,7 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     performances,
     pointLogs,
     snapshots,
-    auditLogs,
+    auditLogs: [],
     testoffScores,
     now: new Date()
   };

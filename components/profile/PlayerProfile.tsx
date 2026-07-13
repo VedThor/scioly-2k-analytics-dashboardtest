@@ -6,8 +6,8 @@ import { CalendarDays, ExternalLink, Medal, Trophy, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { ReadinessBadge } from "@/components/ReadinessBadge";
 import { StatTile } from "@/components/StatTile";
-import { StatusBadge } from "@/components/StatusBadge";
 import { PlayerTrendChart } from "@/components/charts/PlayerTrendChart";
+import { PointHistoryTable } from "@/components/points/PointHistoryTable";
 import type { PlayerDetail } from "@/lib/types";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
@@ -15,9 +15,11 @@ interface PlayerProfileProps {
   player: PlayerDetail;
   mode?: "modal" | "page";
   onClose?: () => void;
+  canWithdrawPoints?: boolean;
+  canRemovePoints?: boolean;
 }
 
-export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileProps) {
+export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoints = false, canRemovePoints = false }: PlayerProfileProps) {
   const [tab, setTab] = useState<"competitions" | "points">("competitions");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -137,7 +139,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
 
         <section>
           <div className="mb-3 flex items-center gap-2">
-            <Medal className="h-5 w-5 text-pink-300" aria-hidden="true" />
+            <Medal className="h-5 w-5 text-amber-200" aria-hidden="true" />
             <h2 className="text-lg font-semibold text-white">Event performance</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -171,7 +173,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                 </div>
               ))
             ) : (
-              <div className="rounded-md border border-court-line bg-court-panel p-4 text-sm text-zinc-400">
+              <div className="rounded-md border border-court-line bg-court-panel p-4 text-sm text-zinc-500">
                 No event placements yet.
               </div>
             )}
@@ -188,7 +190,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                   type="button"
                   onClick={() => setTab(item)}
                   className={cn(
-                    "h-9 rounded px-3 text-xs font-black uppercase text-zinc-400 transition hover:text-white",
+                    "h-9 rounded px-3 text-xs font-black uppercase text-zinc-600 transition hover:text-white",
                     tab === item && "bg-white text-black hover:text-black"
                   )}
                 >
@@ -217,17 +219,17 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                 <tbody>
                   {player.competitionHistory.map((row) => (
                     <tr key={row.id} className="border-t border-court-line">
-                      <td className="px-4 py-3 text-zinc-400">{formatDate(row.date)}</td>
+                      <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 font-bold text-white">{row.tournament}</td>
-                      <td className="px-4 py-3 text-zinc-300">{row.event}</td>
-                      <td className="px-4 py-3 text-zinc-400">{row.participantNames.join(", ")}</td>
+                      <td className="px-4 py-3 text-white">{row.event}</td>
+                      <td className="px-4 py-3 text-zinc-500">{row.participantNames.join(", ")}</td>
                       <td className="px-4 py-3 font-black text-white">#{row.rank}</td>
                       <td className="px-4 py-3 font-black">{row.isMedal ? <span className="text-amber-200">Yes</span> : <span className="text-zinc-500">No</span>}</td>
                       <td className={cn("px-4 py-3 font-black", row.sos >= 1.5 ? "text-emerald-300" : "text-red-300")}>
                         {row.sos.toFixed(2)}x
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-bold text-zinc-200">{row.benchmarkSchool}</div>
+                        <div className="font-bold text-white">{row.benchmarkSchool}</div>
                         <div className="text-[11px] font-black uppercase text-zinc-500">
                           {row.benchmarkSource} · {row.relativeDifficultyMultiplier.toFixed(2)}x
                         </div>
@@ -242,31 +244,14 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-md border border-court-line">
-              <table className="w-full min-w-[680px] border-collapse bg-court-panel text-left text-sm">
-                <thead className="bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Activity</th>
-                    <th className="px-4 py-3">Points</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Approved By</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {player.pointHistory.map((row) => (
-                    <tr key={row.id} className="border-t border-court-line">
-                      <td className="px-4 py-3 text-zinc-400">{formatDate(row.date)}</td>
-                      <td className="px-4 py-3 font-bold text-white">{row.activity}</td>
-                      <td className="px-4 py-3 font-black text-cyan-300">{row.points}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="px-4 py-3 text-zinc-300">{row.approvedBy ?? row.notes ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="overflow-hidden rounded-md border border-court-line bg-court-panel">
+              <PointHistoryTable
+                rows={player.pointHistory}
+                canWithdrawPending={canWithdrawPoints}
+                canRemoveAny={canRemovePoints}
+                emptyTitle="No point history yet"
+                emptyDescription="Practice submissions will appear here."
+              />
             </div>
           )}
         </section>

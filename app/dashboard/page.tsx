@@ -8,9 +8,11 @@ import { StatTile } from "@/components/StatTile";
 import { getDashboardData } from "@/lib/data";
 import { formatNumber } from "@/lib/utils";
 import { readinessExplanation } from "@/lib/readiness";
+import { DashboardSearch } from "@/components/search/DashboardSearch";
+import { TournamentInsightsPanel } from "@/components/dashboard/TournamentInsightsPanel";
 
 export default async function DashboardPage() {
-  const { currentUser, schoolName, players, activePlayers, teams } = await getDashboardData();
+  const { currentUser, schoolName, players, activePlayers, teams, tournamentInsights } = await getDashboardData();
   const scoredPlayers = players.filter((player) => player.readinessScore > 0);
   const averageReadiness = scoredPlayers.reduce((total, player) => total + player.readinessScore, 0) / Math.max(1, scoredPlayers.length);
   const totalTournaments = players.reduce((total, player) => total + player.tournamentsAttended, 0);
@@ -35,6 +37,8 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        <DashboardSearch />
+
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile label="Team readiness" value={<ReadinessBadge value={averageReadiness} size="sm" showLabel />} detail={`${scoredPlayers.length} of ${players.length} students have evidence`} />
           <StatTile label="Your recent preparation" value={formatNumber(currentPlayer?.thirtyDayPoints ?? 0)} detail="Approved practice · last 30 days" />
@@ -46,6 +50,8 @@ export default async function DashboardPage() {
           <summary className="flex cursor-pointer items-center px-4 py-3 text-sm font-medium text-white">How readiness is calculated</summary>
           <div className="border-t border-court-line px-4 py-3 text-sm leading-6 text-zinc-500">{readinessExplanation()} Practice alone never creates a readiness score.</div>
         </details>
+
+        <TournamentInsightsPanel insights={tournamentInsights} />
 
         <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <RosterTable players={players} />

@@ -26,12 +26,18 @@ Development runs with demo data when Supabase variables are absent. Production f
 2. Open the Supabase SQL editor.
 3. Run the complete [`supabase/schema.sql`](supabase/schema.sql) file once.
 4. In Supabase Auth URL settings, set:
-   - Site URL: `https://sciolytracker.com`
-   - Redirect URL: `https://sciolytracker.com/auth/callback`
+   - Site URL: your canonical production URL (currently `https://www.sciolytracker.com`)
+   - Redirect URLs: `https://www.sciolytracker.com/auth/callback` and `https://sciolytracker.com/auth/callback`
    - Also add `https://YOUR-PROJECT.vercel.app/auth/callback` and any Vercel preview callback URL you use while setting up.
-5. Enable email confirmation. Google OAuth is optional; email/password works without it.
+5. Enable email confirmation.
+6. To enable **Continue with Google**:
+   - In Google Auth Platform, create a **Web application** OAuth client. Add the production site under **Authorized JavaScript origins**.
+   - Add the Supabase callback shown on the Supabase Google provider page under **Authorized redirect URIs**. For this project it is `https://odyrltsjihzkqewmnzdp.supabase.co/auth/v1/callback`.
+   - In **Supabase → Authentication → Sign In / Providers → Google**, enter that client's ID and secret, enable the provider, and save.
 
-The schema bootstraps `aaravsinhaofficial@gmail.com` as an admin. If the admin email changes, update both Vercel's `DEFAULT_ADMIN_EMAILS` variable and the Supabase setting:
+The Google client secret belongs in Supabase, not in this repository or Vercel's public environment variables.
+
+The schema bootstraps `aaravsinha002@gmail.com` as an admin. If the admin email changes, update both Vercel's `DEFAULT_ADMIN_EMAILS` variable and the Supabase setting:
 
 ```sql
 update public.system_settings
@@ -60,8 +66,8 @@ For the first deployment, temporarily set `ALLOW_PUBLIC_SIGNUP=true`, create the
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key; keep secret |
-| `APP_URL` | Production only: `https://sciolytracker.com`; omit in Preview |
-| `DEFAULT_ADMIN_EMAILS` | `aaravsinhaofficial@gmail.com` |
+| `APP_URL` | Production only: the canonical production origin; omit in Preview |
+| `DEFAULT_ADMIN_EMAILS` | `aaravsinha002@gmail.com` |
 | `ALLOW_PUBLIC_SIGNUP` | `false` after the first administrator account is created |
 | `CRON_SECRET` | A random 64-character secret |
 | `NEXT_PUBLIC_SCHOOL_NAME` | `Obra D Tompkins High School` |
@@ -88,7 +94,7 @@ First add both `sciolytracker.com` and `www.sciolytracker.com` under **Vercel Pr
 
 If Vercel displays a project-specific `*.vercel-dns-*.com` CNAME, use the exact value Vercel displays instead. Remove the existing `A @ → WebsiteBuilder Site` record and any old `www` Website Builder CNAME. Do not remove GoDaddy nameservers, MX records, or unrelated TXT records. Add a Vercel TXT verification record only if the Vercel Domains screen asks for it.
 
-Set `sciolytracker.com` as the primary production domain and redirect `www.sciolytracker.com` to it. Vercel provisions HTTPS automatically after DNS validates.
+Set `www.sciolytracker.com` as the primary production domain and redirect `sciolytracker.com` to it. Vercel provisions HTTPS automatically after DNS validates.
 
 ## Operational workflow
 

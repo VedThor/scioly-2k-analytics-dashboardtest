@@ -1,4 +1,5 @@
 import { AccountManager } from "@/components/admin/AccountManager";
+import { AdminPointManager } from "@/components/admin/AdminPointManager";
 import { AdminManageTabs } from "@/components/admin/AdminManageTabs";
 import { CustomCategoryManager } from "@/components/admin/CustomCategoryManager";
 import { RosterManager } from "@/components/admin/RosterManager";
@@ -6,17 +7,25 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { getManagePageData } from "@/lib/data";
 
-export default async function ManagePage() {
+export default async function ManagePage({
+  searchParams
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const initialTab = tab === "points" || tab === "categories" || tab === "accounts" ? tab : "roster";
   const { currentUser, rosters, students } = await getManagePageData();
 
   return (
     <AppShell currentUser={currentUser}>
       <div className="space-y-6">
-        <PageHeader label="Admin tools" title="Manage team" description="Update roster assignments, practice categories, accounts, roles, grades, and event profiles. Changes are recorded in the audit log." />
+        <PageHeader label="Admin tools" title="Manage team" description="Update rosters, add or remove point records, manage practice categories, and edit accounts. Changes are recorded in the audit log." />
         <AdminManageTabs
           roster={<RosterManager rosters={rosters} />}
+          points={<AdminPointManager students={students} />}
           categories={<CustomCategoryManager />}
           accounts={<AccountManager students={students} />}
+          initialTab={initialTab}
         />
       </div>
     </AppShell>

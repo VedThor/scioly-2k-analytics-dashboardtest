@@ -72,7 +72,8 @@ const config: Config = {
           black: "rgb(var(--color-background) / <alpha-value>)",
           panel: "rgb(var(--color-panel) / <alpha-value>)",
           elevated: "rgb(var(--color-elevated) / <alpha-value>)",
-          line: "rgb(var(--color-line) / <alpha-value>)"
+          line: "rgb(var(--color-line) / <alpha-value>)",
+          control: "rgb(var(--color-control-line) / <alpha-value>)"
         },
         tier: {
           opal: "#06B6D4",

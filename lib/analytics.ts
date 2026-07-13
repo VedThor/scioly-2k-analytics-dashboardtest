@@ -31,8 +31,12 @@ import type {
   Team,
   TeamComparison,
   TeamMember,
-  Tournament
+  Tournament,
+  TournamentEventSummary,
+  TournamentPartnershipSummary,
+  TournamentResultInsights
 } from "@/lib/types";
+import { normalizeName } from "@/lib/utils";
 
 export interface AnalyticsDataset {
   students: Student[];
@@ -67,9 +71,41 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   const eventById = new Map(dataset.events.map((event) => [event.id, event]));
   const tournamentById = new Map(dataset.tournaments.map((tournament) => [tournament.id, tournament]));
   const teamById = new Map(dataset.teams.map((team) => [team.id, team]));
+  const membershipByStudent = new Map(dataset.teamMembers.map((member) => [member.studentId, member]));
+  const performancesByStudent = new Map<string, Performance[]>();
+  const pointLogsByStudent = new Map<string, GrindPointLog[]>();
+  const snapshotsByStudent = new Map<string, OvrSnapshot[]>();
+  const testoffScoresByStudent = new Map<string, AnalyticsDataset["testoffScores"]>();
+  const membershipsByTeam = new Map<string, TeamMember[]>();
+
+  for (const performance of dataset.performances) {
+    const rows = performancesByStudent.get(performance.studentId);
+    if (rows) rows.push(performance);
+    else performancesByStudent.set(performance.studentId, [performance]);
+  }
+  for (const log of dataset.pointLogs) {
+    const rows = pointLogsByStudent.get(log.studentId);
+    if (rows) rows.push(log);
+    else pointLogsByStudent.set(log.studentId, [log]);
+  }
+  for (const snapshot of dataset.snapshots) {
+    const rows = snapshotsByStudent.get(snapshot.studentId);
+    if (rows) rows.push(snapshot);
+    else snapshotsByStudent.set(snapshot.studentId, [snapshot]);
+  }
+  for (const score of dataset.testoffScores) {
+    const rows = testoffScoresByStudent.get(score.studentId);
+    if (rows) rows.push(score);
+    else testoffScoresByStudent.set(score.studentId, [score]);
+  }
+  for (const membership of dataset.teamMembers) {
+    const rows = membershipsByTeam.get(membership.teamId);
+    if (rows) rows.push(membership);
+    else membershipsByTeam.set(membership.teamId, [membership]);
+  }
 
   function approvedLogsFor(studentId: string) {
-    return dataset.pointLogs.filter((log) => log.studentId === studentId && log.status === "approved");
+    return (pointLogsByStudent.get(studentId) ?? []).filter((log) => log.status === "approved");
   }
 
   function thirtyDayPoints(logs: GrindPointLog[]) {
@@ -82,7 +118,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   }
 
   function getTeamForStudent(studentId: string) {
-    const membership = dataset.teamMembers.find((member) => member.studentId === studentId);
+    const membership = membershipByStudent.get(studentId);
     const team = membership ? teamById.get(membership.teamId) : undefined;
 
     return {
@@ -168,15 +204,155 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       .sort((a, b) => b.eventReadiness - a.eventReadiness);
   }
 
+  let tournamentResultInsightsCache: TournamentResultInsights | undefined;
+  function getTournamentResultInsights(): TournamentResultInsights {
+    if (tournamentResultInsightsCache) return tournamentResultInsightsCache;
+
+    type UniqueResult = {
+      tournamentId: number;
+      eventId: number;
+      rank: number;
+      isMedal: boolean;
+      eventPoints: number;
+      teamDesignation: string;
+      participantNames: Set<string>;
+      participantIds: Set<string>;
+    };
+
+    const uniqueResults = new Map<string, UniqueResult>();
+
+    for (const performance of dataset.performances) {
+      const creditedStudent = studentById.get(performance.studentId);
+      const participantNames = Array.from(new Set(
+        (performance.participantNames.length > 0
+          ? performance.participantNames
+          : creditedStudent?.name
+            ? [creditedStudent.name]
+            : [])
+          .map((name) => name.trim())
+          .filter(Boolean)
+      )).sort((a, b) => normalizeName(a).localeCompare(normalizeName(b)));
+      const participantKey = participantNames.map(normalizeName).join("+") || performance.studentId;
+      const resultKey = [
+        performance.tournamentId,
+        performance.eventId,
+        normalizeName(performance.teamDesignation),
+        performance.rank,
+        participantKey
+      ].join(":");
+      const result = uniqueResults.get(resultKey);
+
+      if (result) {
+        result.participantIds.add(performance.studentId);
+        participantNames.forEach((name) => result.participantNames.add(name));
+        result.isMedal ||= performance.isMedal;
+        result.eventPoints = Math.max(result.eventPoints, performance.eventPoints);
+        continue;
+      }
+
+      uniqueResults.set(resultKey, {
+        tournamentId: performance.tournamentId,
+        eventId: performance.eventId,
+        rank: performance.rank,
+        isMedal: performance.isMedal,
+        eventPoints: performance.eventPoints,
+        teamDesignation: performance.teamDesignation,
+        participantNames: new Set(participantNames),
+        participantIds: new Set([performance.studentId])
+      });
+    }
+
+    const results = Array.from(uniqueResults.values());
+    const eventGroups = new Map<number, UniqueResult[]>();
+    for (const result of results) {
+      const rows = eventGroups.get(result.eventId) ?? [];
+      rows.push(result);
+      eventGroups.set(result.eventId, rows);
+    }
+
+    const eventSummaries: TournamentEventSummary[] = Array.from(eventGroups.entries())
+      .flatMap(([eventId, rows]) => {
+        const event = eventById.get(eventId);
+        if (!event) return [];
+
+        return [{
+          eventId,
+          eventName: event.name,
+          category: event.category,
+          resultCount: rows.length,
+          tournamentCount: new Set(rows.map((row) => row.tournamentId)).size,
+          avgPlacement: roundRating(rows.reduce((sum, row) => sum + row.rank, 0) / rows.length),
+          bestFinish: Math.min(...rows.map((row) => row.rank)),
+          medals: rows.filter((row) => row.isMedal).length,
+          totalEventPoints: rows.reduce((sum, row) => sum + row.eventPoints, 0),
+          teamDesignations: Array.from(new Set(rows.map((row) => row.teamDesignation).filter(Boolean))).sort(),
+          participantNames: Array.from(new Set(rows.flatMap((row) => Array.from(row.participantNames)))).sort()
+        } satisfies TournamentEventSummary];
+      })
+      .sort((a, b) =>
+        b.medals - a.medals ||
+        a.avgPlacement - b.avgPlacement ||
+        b.resultCount - a.resultCount ||
+        b.totalEventPoints - a.totalEventPoints ||
+        a.eventName.localeCompare(b.eventName)
+      );
+
+    const partnershipGroups = new Map<string, UniqueResult[]>();
+    for (const result of results) {
+      const names = Array.from(result.participantNames).sort((a, b) => normalizeName(a).localeCompare(normalizeName(b)));
+      if (names.length < 2) continue;
+      const key = names.map(normalizeName).join("+");
+      const rows = partnershipGroups.get(key) ?? [];
+      rows.push(result);
+      partnershipGroups.set(key, rows);
+    }
+
+    const partnershipSummaries: TournamentPartnershipSummary[] = Array.from(partnershipGroups.values())
+      .map((rows) => {
+        const participantNames = Array.from(rows[0].participantNames)
+          .sort((a, b) => normalizeName(a).localeCompare(normalizeName(b)));
+        const participantIds = Array.from(new Set(rows.flatMap((row) => Array.from(row.participantIds))));
+        const eventNames = Array.from(new Set(rows.flatMap((row) => {
+          const event = eventById.get(row.eventId);
+          return event ? [event.name] : [];
+        }))).sort();
+
+        return {
+          participantNames,
+          participantIds,
+          eventNames,
+          resultCount: rows.length,
+          tournamentCount: new Set(rows.map((row) => row.tournamentId)).size,
+          avgPlacement: roundRating(rows.reduce((sum, row) => sum + row.rank, 0) / rows.length),
+          bestFinish: Math.min(...rows.map((row) => row.rank)),
+          medals: rows.filter((row) => row.isMedal).length,
+          totalEventPoints: rows.reduce((sum, row) => sum + row.eventPoints, 0)
+        } satisfies TournamentPartnershipSummary;
+      })
+      .sort((a, b) =>
+        b.medals - a.medals ||
+        a.avgPlacement - b.avgPlacement ||
+        b.resultCount - a.resultCount ||
+        b.totalEventPoints - a.totalEventPoints ||
+        a.participantNames.join(", ").localeCompare(b.participantNames.join(", "))
+      );
+
+    tournamentResultInsightsCache = {
+      uniqueResultCount: results.length,
+      eventSummaries,
+      partnershipSummaries
+    };
+    return tournamentResultInsightsCache;
+  }
+
   function snapshotsFor(studentId: string) {
-    return dataset.snapshots
-      .filter((snapshot) => snapshot.studentId === studentId)
+    return [...(snapshotsByStudent.get(studentId) ?? [])]
       .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
   }
 
   function detailForStudent(student: Student, rank = 1): PlayerDetail {
-    const performances = dataset.performances.filter((performance) => performance.studentId === student.id);
-    const allLogs = dataset.pointLogs.filter((log) => log.studentId === student.id);
+    const performances = performancesByStudent.get(student.id) ?? [];
+    const allLogs = pointLogsByStudent.get(student.id) ?? [];
     const approvedLogs = approvedLogsFor(student.id);
     const approvedPracticePoints = approvedLogs.reduce((total, log) => total + log.points, 0);
     const pendingPracticePoints = allLogs
@@ -196,8 +372,8 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         return tournament ? [{ eventId: performance.eventId, rank: performance.rank, date: tournament.date }] : [];
       }),
       thirtyDayPoints: activePoints,
-      testoffScores: dataset.testoffScores
-        .filter((score) => score.studentId === student.id && score.isActiveSeason)
+      testoffScores: (testoffScoresByStudent.get(student.id) ?? [])
+        .filter((score) => score.isActiveSeason)
         .map((score) => ({ score: score.score, weight: score.weight }))
     });
 
@@ -229,11 +405,14 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     };
   }
 
+  let leaderboardCache: PlayerDetail[] | undefined;
   function getLeaderboardPlayers() {
-    return dataset.students
+    if (leaderboardCache) return leaderboardCache;
+    leaderboardCache = dataset.students
       .map((student) => detailForStudent(student))
       .sort((a, b) => b.readinessScore - a.readinessScore || a.name.localeCompare(b.name))
       .map((student, index) => ({ ...student, rank: index + 1 }));
+    return leaderboardCache;
   }
 
   function getPlayerDetail(id: string) {
@@ -259,18 +438,18 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     return roundRating(topMembers.reduce((sum, member) => sum + member.readinessScore, 0) / topMembers.length);
   }
 
+  let teamComparisonCache: TeamComparison[] | undefined;
   function getTeamComparisons(): TeamComparison[] {
+    if (teamComparisonCache) return teamComparisonCache;
     const players = getLeaderboardPlayers();
     const playerById = new Map(players.map((player) => [player.id, player]));
 
-    return dataset.teams.map((team) => {
-      const members = dataset.teamMembers
-        .filter((member) => member.teamId === team.id)
+    teamComparisonCache = dataset.teams.map((team) => {
+      const members = (membershipsByTeam.get(team.id) ?? [])
         .map((member) => playerById.get(member.studentId))
         .filter((member): member is PlayerDetail => Boolean(member));
 
-      const memberIds = new Set(members.map((member) => member.id));
-      const memberPerformances = dataset.performances.filter((performance) => memberIds.has(performance.studentId));
+      const memberPerformances = members.flatMap((member) => performancesByStudent.get(member.id) ?? []);
       const latestPerformance = [...memberPerformances].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
@@ -291,6 +470,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         lastSos: latestTournament?.sosMultiplier
       };
     });
+    return teamComparisonCache;
   }
 
   function getAuditTrail() {
@@ -303,6 +483,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     const teamRosters = getTeamComparisons().map((team) => ({
       id: team.id,
       label: `${team.schoolName} ${team.designation}`,
+      designation: team.designation,
       readiness: team.teamReadiness,
       members: team.members.map((member) => ({
         id: member.id,
@@ -327,6 +508,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       {
         id: "unassigned",
         label: "Unassigned",
+        designation: "unassigned",
         readiness: 0,
         members: unassigned
       }
@@ -347,6 +529,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       tournaments: dataset.tournaments,
       pendingLogs: getApprovalQueue()
     }),
+    getTournamentResultInsights,
     getRosterSeedForDragDrop
   };
 }

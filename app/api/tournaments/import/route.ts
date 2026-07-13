@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { parseTournamentInput, placementScoresForPreview } from "@/lib/tournament-import";
 import { resolveTournamentParticipants, type ParticipantSelection } from "@/lib/tournament-participant-resolution";
 import { getAuthenticatedStudent } from "@/lib/auth";
@@ -6,7 +7,7 @@ import { getCurrentDemoUser } from "@/lib/analytics";
 import { mockStudents, mockTeamMembers, mockTeams, schoolName } from "@/lib/seed";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import type { TournamentParticipantCandidate, TournamentSourceType } from "@/lib/types";
-import { normalizeName, roleMeets } from "@/lib/utils";
+import { normalizeEventName, normalizeName, roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: existingEvents, error: existingEventsError } = await supabase
+      .from("events")
+      .select("id,name,category");
+    if (existingEventsError) {
+      return NextResponse.json({ ok: false, preview, error: existingEventsError.message }, { status: 500 });
+    }
+    const eventsByCanonicalName = new Map<string, Array<{ id: number; name: string; category: string }>>();
+    for (const event of existingEvents ?? []) {
+      const key = normalizeEventName(String(event.name));
+      const rows = eventsByCanonicalName.get(key) ?? [];
+      rows.push({ id: Number(event.id), name: String(event.name), category: String(event.category) });
+      eventsByCanonicalName.set(key, rows);
+    }
+
     const { data: tournament, error: tournamentError } = await supabase
       .from("tournaments")
       .insert({
@@ -164,28 +179,31 @@ export async function POST(request: Request) {
     }
 
     const createdEventIds: number[] = [];
+    const cleanupImport = async () => {
+      await supabase.from("tournaments").delete().eq("id", tournament.id);
+      if (createdEventIds.length > 0) await supabase.from("events").delete().in("id", createdEventIds);
+    };
     for (const performance of localPerformances) {
-      const { data: matchingEvents, error: eventLookupError } = await supabase
-        .from("events")
-        .select("id,name,category")
-        .ilike("name", performance.eventName);
-      if (eventLookupError || (matchingEvents?.length ?? 0) > 1) {
-        await supabase.from("tournaments").delete().eq("id", tournament.id);
-        return NextResponse.json({ ok: false, preview, error: eventLookupError?.message ?? `Multiple events match ${performance.eventName}.` }, { status: 409 });
+      const canonicalEventName = normalizeEventName(performance.eventName);
+      const matchingEvents = eventsByCanonicalName.get(canonicalEventName) ?? [];
+      if (matchingEvents.length > 1) {
+        await cleanupImport();
+        return NextResponse.json({ ok: false, preview, error: `Multiple canonical events match ${performance.eventName}.` }, { status: 409 });
       }
-      let event = matchingEvents?.[0];
+      let event = matchingEvents[0];
       if (event && event.category !== performance.category) {
-        await supabase.from("tournaments").delete().eq("id", tournament.id);
+        await cleanupImport();
         return NextResponse.json({ ok: false, preview, error: `${performance.eventName} already exists with a different category.` }, { status: 409 });
       }
       if (!event) {
         const created = await supabase.from("events").insert({ name: performance.eventName, category: performance.category }).select("id,name,category").single();
         if (created.error || !created.data) {
-          await supabase.from("tournaments").delete().eq("id", tournament.id);
+          await cleanupImport();
           return NextResponse.json({ ok: false, preview, error: created.error?.message ?? `Could not create ${performance.eventName}.` }, { status: 500 });
         }
         event = created.data;
         createdEventIds.push(Number(event.id));
+        eventsByCanonicalName.set(canonicalEventName, [{ id: Number(event.id), name: String(event.name), category: String(event.category) }]);
       }
 
       for (const participant of performance.participantResolution?.selected ?? []) {
@@ -207,13 +225,13 @@ export async function POST(request: Request) {
           { onConflict: "student_id,tournament_id,event_id" }
         );
         if (performanceError) {
-          await supabase.from("tournaments").delete().eq("id", tournament.id);
+          await cleanupImport();
           return NextResponse.json({ ok: false, preview, error: performanceError.message }, { status: 500 });
         }
       }
     }
 
-    await supabase.from("audit_logs").insert({
+    const { error: auditError } = await supabase.from("audit_logs").insert({
       actor_id: currentUser.id,
       action: "tournament.import",
       target: preview.tournamentName,
@@ -225,6 +243,14 @@ export async function POST(request: Request) {
       undo_action: "tournament.delete",
       is_reversible: true
     });
+    if (auditError) {
+      await cleanupImport();
+      return NextResponse.json(
+        { ok: false, preview, error: "The import was rolled back because its undo record could not be saved." },
+        { status: 500 }
+      );
+    }
+    invalidateAnalyticsCache();
   }
 
   return NextResponse.json({

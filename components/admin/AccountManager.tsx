@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Save, Shield } from "lucide-react";
 import type { PlayerDetail, UserRole } from "@/lib/types";
 
@@ -31,6 +32,7 @@ function toEditable(student: PlayerDetail): EditableStudent {
 }
 
 export function AccountManager({ students }: AccountManagerProps) {
+  const router = useRouter();
   const [rows, setRows] = useState(() => students.map(toEditable));
   const [message, setMessage] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export function AccountManager({ students }: AccountManagerProps) {
         const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
         if (!response.ok) throw new Error(payload?.error ?? "Could not save student.");
         setMessage(payload?.message ?? `${row.name} updated.`);
+        router.refresh();
       } catch (caught) {
         setMessage(caught instanceof Error ? caught.message : "Could not save this account.");
       } finally {
@@ -75,14 +78,14 @@ export function AccountManager({ students }: AccountManagerProps) {
     <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
       <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-xs font-black uppercase text-pink-300">
+          <div className="flex items-center gap-2 text-xs font-black uppercase text-cyan-300">
             <Shield className="h-4 w-4" aria-hidden="true" />
             Admin Only
           </div>
           <h2 className="mt-1 text-xl font-semibold text-white">Accounts and profiles</h2>
-          <p className="mt-1 text-sm text-zinc-400">Edit role, grade, and listed events for any student account.</p>
+          <p className="mt-1 text-sm text-zinc-500">Edit role, grade, and listed events for any student account.</p>
         </div>
-        {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
+        {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">{message}</div> : null}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse text-left text-sm">
@@ -106,7 +109,7 @@ export function AccountManager({ students }: AccountManagerProps) {
                     className="h-10 w-full rounded-md border border-court-line bg-court-elevated px-3 font-bold text-white outline-none focus:border-cyan-400"
                   />
                 </td>
-                <td className="px-4 py-3 text-zinc-400">{row.email}</td>
+                <td className="px-4 py-3 text-zinc-500">{row.email}</td>
                 <td className="px-4 py-3">
                   <select
                     value={row.grade}
@@ -146,7 +149,7 @@ export function AccountManager({ students }: AccountManagerProps) {
                     type="button"
                     onClick={() => save(row)}
                     disabled={isPending && savingId === row.id}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-xs font-black uppercase text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-xs font-black uppercase text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
                   >
                     {isPending && savingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Save

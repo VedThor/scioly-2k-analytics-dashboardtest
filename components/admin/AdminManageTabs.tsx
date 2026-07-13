@@ -1,20 +1,38 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export function AdminManageTabs({ roster, categories, accounts }: { roster: ReactNode; categories: ReactNode; accounts: ReactNode }) {
-  const [tab, setTab] = useState<"roster" | "categories" | "accounts">("roster");
+export type ManageTab = "roster" | "points" | "categories" | "accounts";
+
+export function AdminManageTabs({ roster, points, categories, accounts, initialTab = "roster" }: { roster: ReactNode; points: ReactNode; categories: ReactNode; accounts: ReactNode; initialTab?: ManageTab }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<ManageTab>(initialTab);
   const tabs = [
     { id: "roster" as const, label: "Rosters" },
+    { id: "points" as const, label: "Points" },
     { id: "categories" as const, label: "Point categories" },
     { id: "accounts" as const, label: "Accounts and profiles" }
   ];
+
+  useEffect(() => setTab(initialTab), [initialTab]);
+
+  function chooseTab(nextTab: ManageTab) {
+    setTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  const panel = tab === "roster" ? roster : tab === "points" ? points : tab === "categories" ? categories : accounts;
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="tablist" aria-label="Team management area">
-        {tabs.map((item) => <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-md px-4 text-sm font-medium ${tab === item.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={tab === item.id}>{item.label}</button>)}
+      <div className="flex max-w-full flex-wrap gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="tablist" aria-label="Team management area">
+        {tabs.map((item) => <button key={item.id} type="button" onClick={() => chooseTab(item.id)} className={`rounded-md px-4 text-sm font-medium ${tab === item.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={tab === item.id}>{item.label}</button>)}
       </div>
-      <div role="tabpanel">{tab === "roster" ? roster : tab === "categories" ? categories : accounts}</div>
+      <div role="tabpanel">{panel}</div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, PlusCircle } from "lucide-react";
 import { activityHelp, activityLabels, calculateActivityPoints } from "@/lib/activity";
 import type { ActivityType, CustomPointCategory, Student } from "@/lib/types";
@@ -13,6 +14,7 @@ interface QuickPointLogFormProps {
 const activityTypes = Object.keys(activityLabels) as ActivityType[];
 
 export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
+  const router = useRouter();
   const [activityType, setActivityType] = useState<ActivityType>("solo_study");
   const [minutes, setMinutes] = useState(60);
   const [quantity, setQuantity] = useState(50);
@@ -102,6 +104,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           throw new Error(payload.error ?? "Could not submit point log.");
         }
         setMessage(`${payload.message ?? payload.error ?? "Point log submitted."} View it in your submission history.`);
+        router.refresh();
       } catch (caught) {
         setMessage(caught instanceof Error ? caught.message : "Could not submit point log.");
       }
@@ -109,9 +112,9 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   }
 
   return (
-    <section className="rounded-md border border-court-line bg-court-panel p-4 shadow-sm" aria-labelledby="log-practice-heading">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+    <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel p-4 shadow-sm" aria-labelledby="log-practice-heading">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h2 id="log-practice-heading" className="text-lg font-semibold text-white">Log practice</h2>
           <p className="mt-1 text-sm leading-5 text-zinc-500">Your entry will be sent to an officer for approval.</p>
         </div>
@@ -122,19 +125,20 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
       </div>
 
       <div className="mt-4 grid gap-3">
-        <label className="grid gap-2 text-sm font-medium text-zinc-600">
+        <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
           Activity type
           <select
             value={activityType}
             onChange={(event) => setActivityType(event.target.value as ActivityType)}
-            className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
+            className="h-11 w-full min-w-0 max-w-full rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
           >
             {activityTypes.map((type) => (
               <option key={type} value={type}>
-                {activityLabels[type]} - {activityHelp[type]}
+                {activityLabels[type]}
               </option>
             ))}
           </select>
+          <span className="text-xs font-normal leading-5 text-zinc-500">{activityHelp[activityType]}</span>
         </label>
 
         {(activityType === "solo_study" || activityType === "partner_study" || activityType === "build_testing") && (
@@ -217,7 +221,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         type="button"
         onClick={submit}
         disabled={isPending || points <= 0}
-        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />}
         Send for approval

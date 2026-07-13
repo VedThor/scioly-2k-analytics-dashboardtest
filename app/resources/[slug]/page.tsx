@@ -4,7 +4,10 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { StatTile } from "@/components/StatTile";
 import { getCurrentUser } from "@/lib/data";
-import { getSciolyEvent, sciolyEvents } from "@/lib/resource-data";
+import { getLibraryEvent } from "@/lib/library-data";
+import { sciolyEvents } from "@/lib/resource-data";
+import { searchAnchor } from "@/lib/search-utils";
+import { roleMeets } from "@/lib/utils";
 
 export function generateStaticParams() {
   return sciolyEvents.map((event) => ({ slug: event.slug }));
@@ -16,8 +19,7 @@ export default async function ResourceEventPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const currentUser = await getCurrentUser();
-  const event = getSciolyEvent(slug);
+  const [currentUser, event] = await Promise.all([getCurrentUser(), getLibraryEvent(slug)]);
 
   if (!event) notFound();
 
@@ -32,7 +34,14 @@ export default async function ResourceEventPage({
           label={`${event.category} event · Lead: ${event.lead}`}
           title={event.name}
           description={event.description}
-          actions={<span className="rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.coverageScore}% coverage</span>}
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex min-h-11 items-center rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.coverageScore}% coverage</span>
+              {roleMeets(currentUser.role, "officer") ? (
+                <Link href={`/admin/library?event=${encodeURIComponent(event.slug)}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Manage library</Link>
+              ) : null}
+            </div>
+          )}
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -43,7 +52,7 @@ export default async function ResourceEventPage({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[400px_1fr]">
-          <div className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
+          <div id="topics" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
             <div className="text-sm font-medium text-cyan-300">Starter path</div>
             <h2 className="mt-1 text-xl font-semibold text-white">Where to start</h2>
             <div className="mt-5 space-y-3">
@@ -52,7 +61,7 @@ export default async function ResourceEventPage({
                   <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-cyan-400/60 bg-cyan-400/10 text-sm font-black text-cyan-300">
                     {index + 1}
                   </div>
-                  <p className="text-sm leading-6 text-zinc-300">{step}</p>
+                  <p className="text-sm leading-6 text-zinc-600">{step}</p>
                 </div>
               ))}
             </div>
@@ -63,14 +72,14 @@ export default async function ResourceEventPage({
             <h2 className="mt-1 text-xl font-semibold text-white">What to study</h2>
             <div className="mt-5 flex flex-wrap gap-2">
               {event.topics.map((topic) => (
-                <span key={topic} className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-300">
+                <span key={topic} className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-600">
                   {topic}
                 </span>
               ))}
             </div>
             <div className="mt-6 rounded-md border border-cyan-400/30 bg-cyan-400/10 p-4">
               <div className="text-sm font-medium text-cyan-300">Keep it useful</div>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
                 If a resource does not help a member start, practice, or test better, it should not be pinned. The hub
                 is a curated playbook, not a dumping ground.
               </p>
@@ -78,72 +87,92 @@ export default async function ResourceEventPage({
           </div>
         </section>
 
-        <section className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
+        <section id="resources" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
           <div className="text-sm font-medium text-cyan-300">Resources</div>
           <h2 className="mt-1 text-xl font-semibold text-white">Notes, guides, and cheat sheets</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {event.resources.map((resource) => (
-              <article key={resource.title} className="rounded-md border border-court-line bg-court-elevated p-4">
+              <article id={`resource-${searchAnchor(resource.title)}`} key={resource.title} className="min-w-0 scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-md border border-court-line bg-black px-2 py-1 text-[11px] font-black uppercase text-zinc-400">
+                  <span className="rounded-md border border-court-control bg-court-panel px-2 py-1 text-xs font-medium text-zinc-600">
                     {resource.type}
                   </span>
-                  <span className="rounded-md border border-fuchsia-400/40 bg-fuchsia-400/10 px-2 py-1 text-[11px] font-black uppercase text-fuchsia-300">
+                  <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300">
                     {resource.difficulty}
                   </span>
                   {resource.recommended && (
-                    <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-[11px] font-black uppercase text-cyan-300">
+                    <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300">
                       Featured
                     </span>
                   )}
                 </div>
-                <h3 className="mt-4 text-xl font-black text-white">{resource.title}</h3>
-                <div className="mt-2 text-[11px] font-black uppercase text-cyan-300">{resource.topic}</div>
-                <p className="mt-3 text-sm leading-6 text-zinc-400">{resource.description}</p>
+                <h3 className="mt-4 break-words text-lg font-semibold text-white">{resource.title}</h3>
+                <div className="mt-2 text-xs font-medium text-cyan-300">{resource.topic}</div>
+                <p className="mt-3 break-words text-sm leading-6 text-zinc-600">{resource.description}</p>
+                {resource.body ? (
+                  <details className="mt-4 rounded-md border border-court-control bg-court-panel">
+                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-white">Read guide text</summary>
+                    <div className="whitespace-pre-wrap break-words border-t border-court-line p-3 text-sm leading-6 text-zinc-600">{resource.body}</div>
+                  </details>
+                ) : null}
+                {resource.url ? (
+                  <a href={resource.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Open resource ↗</a>
+                ) : null}
               </article>
             ))}
           </div>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
+          <div id="questions" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
             <div className="text-sm font-medium text-cyan-300">Practice</div>
             <h2 className="mt-1 text-xl font-semibold text-white">Questions</h2>
             <div className="mt-5 space-y-4">
               {event.questions.map((question) => (
-                <article key={question.question} className="rounded-md border border-court-line bg-court-elevated p-4">
-                  <div className="text-[11px] font-black uppercase text-zinc-500">
+                <article id={`question-${searchAnchor(question.question)}`} key={question.question} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
+                  <div className="text-xs font-medium text-zinc-500">
                     {question.topic} / {question.difficulty}
                   </div>
-                  <p className="mt-2 font-black text-white">{question.question}</p>
-                  <div className="mt-4 rounded-md border border-court-line bg-black p-4">
-                    <div className="text-sm font-black text-cyan-300">Answer: {question.answer}</div>
-                    <p className="mt-2 text-sm leading-6 text-zinc-400">{question.explanation}</p>
-                  </div>
+                  <p className="mt-2 break-words font-semibold leading-6 text-white">{question.question}</p>
+                  <details className="mt-4 rounded-md border border-court-control bg-court-panel">
+                    <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-cyan-300">Reveal answer</summary>
+                    <div className="border-t border-court-line p-4">
+                      <div className="break-words text-sm font-semibold text-white">{question.answer}</div>
+                      <p className="mt-2 break-words text-sm leading-6 text-zinc-600">{question.explanation}</p>
+                    </div>
+                  </details>
                 </article>
               ))}
             </div>
           </div>
 
-          <div className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
+          <div id="tests" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
             <div className="text-sm font-medium text-cyan-300">Practice</div>
             <h2 className="mt-1 text-xl font-semibold text-white">Mini and full tests</h2>
             <div className="mt-5 space-y-4">
               {event.tests.map((test) => (
-                <article key={test.title} className="rounded-md border border-court-line bg-court-elevated p-4">
+                <article id={`test-${searchAnchor(test.title)}`} key={test.title} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-md border border-court-line bg-black px-2 py-1 text-[11px] font-black uppercase text-zinc-400">
+                    <span className="rounded-md border border-court-control bg-court-panel px-2 py-1 text-xs font-medium text-zinc-600">
                       {test.format}
                     </span>
-                    <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-[11px] font-black uppercase text-cyan-300">
+                    <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300">
                       {test.difficulty}
                     </span>
                   </div>
-                  <h3 className="mt-4 text-xl font-black text-white">{test.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-zinc-400">{test.description}</p>
-                  <button disabled className="mt-5 w-full cursor-not-allowed rounded-md border border-court-line px-4 py-3 text-sm font-medium text-zinc-500">
-                    PDF not yet available
-                  </button>
+                  <h3 className="mt-4 break-words text-lg font-semibold text-white">{test.title}</h3>
+                  <p className="mt-3 break-words text-sm leading-6 text-zinc-600">{test.description}</p>
+                  {test.body ? (
+                    <details className="mt-4 rounded-md border border-court-control bg-court-panel">
+                      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-white">Read test instructions</summary>
+                      <div className="whitespace-pre-wrap break-words border-t border-court-line p-3 text-sm leading-6 text-zinc-600">{test.body}</div>
+                    </details>
+                  ) : null}
+                  {test.url ? (
+                    <a href={test.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Open practice test ↗</a>
+                  ) : (
+                    <div className="mt-4 rounded-md border border-court-line bg-court-panel px-4 py-3 text-sm text-zinc-500">No test file has been uploaded yet.</div>
+                  )}
                 </article>
               ))}
             </div>
