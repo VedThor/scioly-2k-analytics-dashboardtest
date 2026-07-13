@@ -33,12 +33,17 @@ export default async function TestoffsPage({
           label="Team selection"
           title="Testoff rankings"
           description="Compare scores within each event. Results are normalized so sessions with different maximum scores can be combined fairly."
+          actions={roleMeets(currentUser.role, "officer") ? (
+            <Link href="/admin/testoffs" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
+              Enter testoff scores
+            </Link>
+          ) : undefined}
         />
 
         <section className="grid gap-3 sm:grid-cols-3">
-          <StatTile label="Active events" value={currentGroups.length} detail="With testoff data" />
-          <StatTile label="Sessions" value={sessionCount} detail="In the selected season" />
-          <StatTile label="Ranked students" value={rankedStudents} detail="Unique candidates" />
+          <StatTile href="#testoff-rankings" label="Active events" value={currentGroups.length} detail="With testoff data" />
+          <StatTile href="#testoff-rankings" label="Sessions" value={sessionCount} detail="In the selected season" />
+          <StatTile href="#testoff-rankings" label="Ranked students" value={rankedStudents} detail="Unique candidates" />
         </section>
 
         <details className="group rounded-md border border-court-line bg-court-panel shadow-sm">
@@ -68,3 +73,4 @@ export default async function TestoffsPage({
     </AppShell>
   );
 }
+import Link from "next/link";

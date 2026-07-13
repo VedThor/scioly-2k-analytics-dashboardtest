@@ -20,11 +20,19 @@ export function TeamComparisonView({ teams, initialTeamDesignation }: TeamCompar
   const [compare, setCompare] = useState(false);
   const visibleTeams = compare ? teams : teams.filter((team) => team.id === selectedTeamId);
 
+  if (teams.length === 0) {
+    return (
+      <section className="rounded-md border border-dashed border-court-line bg-court-panel p-8 text-center">
+        <UsersEmptyState />
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="tablist" aria-label="Choose team view">
         {teams.map((team) => (
-          <button key={team.id} type="button" onClick={() => { setSelectedTeamId(team.id); setCompare(false); }} className={`rounded-md px-4 text-sm font-medium ${!compare && selectedTeamId === team.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={!compare && selectedTeamId === team.id}>Team {team.designation}</button>
+          <button key={team.id} type="button" onClick={() => { setSelectedTeamId(team.id); setCompare(false); }} className={`rounded-md px-4 text-sm font-medium ${!compare && selectedTeamId === team.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={!compare && selectedTeamId === team.id}>{team.name || `Team ${team.designation}`}</button>
         ))}
         <button type="button" onClick={() => setCompare(true)} className={`rounded-md px-4 text-sm font-medium ${compare ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={compare}>Compare all</button>
       </div>
@@ -35,7 +43,7 @@ export function TeamComparisonView({ teams, initialTeamDesignation }: TeamCompar
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-medium text-zinc-500">{team.schoolName}</div>
-                <h2 className="mt-1 text-2xl font-semibold text-white">Team {team.designation}</h2>
+                <h2 className="mt-1 break-words text-2xl font-semibold text-white">{team.name || `Team ${team.designation}`}</h2>
               </div>
               <ReadinessBadge value={team.teamReadiness} size="md" showLabel />
             </div>
@@ -82,5 +90,14 @@ export function TeamComparisonView({ teams, initialTeamDesignation }: TeamCompar
       ))}
       </div>
     </div>
+  );
+}
+
+function UsersEmptyState() {
+  return (
+    <>
+      <h2 className="text-xl font-semibold text-white">No teams configured</h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-500">An admin can create the first team from Manage teams, then assign students to it.</p>
+    </>
   );
 }

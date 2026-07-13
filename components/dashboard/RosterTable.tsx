@@ -89,7 +89,7 @@ export function RosterTable({ players }: RosterTableProps) {
 
   return (
     <>
-      <section className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading" data-tour="roster">
+      <section id="team-roster" className="scroll-mt-24 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading" data-tour="roster">
         <div className="border-b border-court-line p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

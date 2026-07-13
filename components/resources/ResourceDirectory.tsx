@@ -33,7 +33,7 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
   }, [category, events, query]);
 
   return (
-    <section className="min-w-0 rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6" aria-labelledby="resource-directory-heading" data-tour="resources">
+    <section id="resource-directory" className="scroll-mt-24 min-w-0 rounded-md border border-court-line bg-court-panel p-4 shadow-sm sm:p-6" aria-labelledby="resource-directory-heading" data-tour="resources">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 id="resource-directory-heading" className="text-xl font-semibold text-white">Resources by event</h2>

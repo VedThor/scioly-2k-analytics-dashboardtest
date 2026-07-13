@@ -32,18 +32,25 @@ export default async function DashboardPage() {
               Track your team, log practice, and see where everyone stands.
             </p>
           </div>
-          <div className="rounded-full border border-court-line bg-court-panel px-3 py-1.5 text-xs font-medium capitalize text-zinc-600 shadow-sm">
-            {currentUser.role} access
+          <div className="flex flex-wrap items-center gap-2">
+            {currentUser.role === "admin" ? (
+              <Link href="/admin/reports" className="inline-flex min-h-10 items-center rounded-md border border-court-line bg-court-panel px-3 text-sm font-medium text-zinc-600 transition-colors hover:border-cyan-400 hover:text-white">
+                Generate report
+              </Link>
+            ) : null}
+            <div className="rounded-full border border-court-line bg-court-panel px-3 py-1.5 text-xs font-medium capitalize text-zinc-600 shadow-sm">
+              {currentUser.role} access
+            </div>
           </div>
         </section>
 
         <DashboardSearch />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Team readiness" value={<ReadinessBadge value={averageReadiness} size="sm" showLabel />} detail={`${scoredPlayers.length} of ${players.length} students have evidence`} />
-          <StatTile label="Your recent preparation" value={formatNumber(currentPlayer?.thirtyDayPoints ?? 0)} detail="Approved practice · last 30 days" />
-          <StatTile label="Awaiting approval" value={formatNumber(currentPlayer?.pendingPracticePoints ?? 0)} detail="Your submitted practice points" />
-          <StatTile label="Active students" value={players.length} detail={`${formatNumber(totalTournaments)} recorded competition starts`} />
+          <StatTile href="#team-roster" linkLabel="View team standings" label="Team readiness" value={<ReadinessBadge value={averageReadiness} size="sm" showLabel />} detail={`${scoredPlayers.length} of ${players.length} students have evidence`} />
+          <StatTile href="/points#submission-history" linkLabel="Review your practice" label="Your recent preparation" value={formatNumber(currentPlayer?.thirtyDayPoints ?? 0)} detail="Approved practice · last 30 days" />
+          <StatTile href="/points#submission-history" linkLabel="Review submissions" label="Awaiting approval" value={formatNumber(currentPlayer?.pendingPracticePoints ?? 0)} detail="Your submitted practice points" />
+          <StatTile href="/teams" linkLabel="Open team rosters" label="Active students" value={players.length} detail={`${formatNumber(totalTournaments)} recorded competition starts`} />
         </section>
 
         <details className="rounded-md border border-court-line bg-court-panel shadow-sm">
@@ -56,7 +63,7 @@ export default async function DashboardPage() {
         <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <RosterTable players={players} />
           <aside className="space-y-5">
-            <QuickPointLogForm currentUser={currentUser} />
+            <div id="quick-point-log" className="scroll-mt-24"><QuickPointLogForm currentUser={currentUser} /></div>
             <ActivityPanel players={activePlayers} />
             <TeamMiniPanel teams={teams} />
           </aside>
@@ -65,3 +72,4 @@ export default async function DashboardPage() {
     </AppShell>
   );
 }
+import Link from "next/link";

@@ -30,6 +30,7 @@ alter table public.students add column if not exists profile_events text[] not n
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
+  name text,
   school_name text not null,
   team_designation text not null,
   team_ovr numeric(5, 2) not null default 60.00,
@@ -38,6 +39,14 @@ create table if not exists public.teams (
   unique (school_name, team_designation)
 );
 
+alter table public.teams add column if not exists name text;
+update public.teams
+set name = concat(school_name, ' ', team_designation)
+where name is null or btrim(name) = '';
+alter table public.teams alter column name set not null;
+create unique index if not exists teams_school_designation_case_insensitive
+on public.teams (lower(btrim(school_name)), lower(btrim(team_designation)));
+
 create table if not exists public.team_members (
   team_id uuid not null references public.teams(id) on delete cascade,
   student_id uuid not null references public.students(id) on delete cascade,
@@ -45,12 +54,12 @@ create table if not exists public.team_members (
   primary key (team_id, student_id)
 );
 
-insert into public.teams (school_name, team_designation)
+insert into public.teams (name, school_name, team_designation)
 values
-  ('Obra D Tompkins High School', 'A'),
-  ('Obra D Tompkins High School', 'B'),
-  ('Obra D Tompkins High School', 'C')
-on conflict (school_name, team_designation) do nothing;
+  ('Tompkins A', 'Obra D Tompkins High School', 'A'),
+  ('Tompkins B', 'Obra D Tompkins High School', 'B'),
+  ('Tompkins C', 'Obra D Tompkins High School', 'C')
+on conflict do nothing;
 
 create table if not exists public.events (
   id serial primary key,

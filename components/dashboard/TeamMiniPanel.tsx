@@ -23,20 +23,20 @@ export function TeamMiniPanel({ teams }: TeamMiniPanelProps) {
         {teams.map((team) => (
           <div key={team.id} className="rounded-md bg-court-elevated p-3">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs font-medium text-zinc-500">Team {team.designation}</div>
-                <div className="font-semibold text-white">{team.members.length} members</div>
-              </div>
+              <Link href={`/teams?team=${encodeURIComponent(team.designation)}`} className="group min-w-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+                <div className="truncate text-xs font-medium text-zinc-500">{team.name || `Team ${team.designation}`}</div>
+                <div className="font-semibold text-white group-hover:text-cyan-300">{team.members.length} members →</div>
+              </Link>
               <ReadinessBadge value={team.teamReadiness} size="sm" />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <div className="font-medium text-zinc-500">Top study</div>
-                <div className="truncate text-white">{team.topStudy?.name ?? "No data yet"}</div>
+                {team.topStudy ? <Link href={`/profile/${team.topStudy.id}`} className="block truncate text-white hover:text-cyan-300">{team.topStudy.name}</Link> : <div className="truncate text-zinc-500">No data yet</div>}
               </div>
               <div>
                 <div className="font-medium text-zinc-500">Top build</div>
-                <div className="truncate text-white">{team.topBuild?.name ?? "No data yet"}</div>
+                {team.topBuild ? <Link href={`/profile/${team.topBuild.id}`} className="block truncate text-white hover:text-cyan-300">{team.topBuild.name}</Link> : <div className="truncate text-zinc-500">No data yet</div>}
               </div>
             </div>
           </div>

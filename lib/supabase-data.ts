@@ -226,6 +226,7 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
 
   const teams: Team[] = ((teamResult.data ?? []) as DbRow[]).map((row) => ({
     id: stringValue(row.id),
+    name: stringValue(row.name) || undefined,
     schoolName: stringValue(row.school_name),
     teamDesignation: stringValue(row.team_designation, "A"),
     teamOvr: numberValue(row.team_ovr, 60),

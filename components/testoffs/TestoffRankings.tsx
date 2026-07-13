@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CalendarDays, ClipboardList, Loader2, Scale, Trash2, Trophy } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/Avatar";
@@ -70,10 +71,10 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
                 <tr key={entry.studentId} className="border-t border-court-line">
                   <td className="px-4 py-4 text-lg font-black italic text-zinc-500">#{entry.rank}</td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
+                    <Link href={`/profile/${entry.studentId}`} className="flex items-center gap-3 rounded hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
                       <Avatar name={entry.studentName} size="sm" />
-                      <span className="font-black text-white">{entry.studentName}</span>
-                    </div>
+                      <span className="font-black text-white hover:text-cyan-300">{entry.studentName}</span>
+                    </Link>
                   </td>
                   <td className="px-4 py-4 text-right text-xl font-black italic text-cyan-300">
                     {entry.compositeScore.toFixed(1)}
@@ -173,7 +174,7 @@ function SessionCards({
                   {session.results.map((result) => (
                     <tr key={result.id} className="border-t border-court-line">
                       <td className="px-4 py-3 font-black text-zinc-500">#{result.rank}</td>
-                      <td className="px-4 py-3 font-bold text-white">{result.studentName}</td>
+                      <td className="px-4 py-3 font-bold text-white"><Link href={`/profile/${result.studentId}`} className="hover:text-cyan-300">{result.studentName}</Link></td>
                       <td className="px-4 py-3 text-right font-black text-white">
                         {formatScore(result.rawScore)}/{formatScore(session.maxScore)}
                       </td>
@@ -240,7 +241,7 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
   const selectedEvent = seasonEvents.find((group) => group.eventId === eventId) ?? seasonEvents[0];
 
   return (
-    <div className="space-y-5">
+    <div id="testoff-rankings" className="scroll-mt-24 space-y-5">
       {correctionMessage ? (
         <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">
           {correctionMessage}

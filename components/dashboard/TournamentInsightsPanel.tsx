@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { Medal, Trophy, UsersRound } from "lucide-react";
 import type { TournamentResultInsights } from "@/lib/types";
+import { searchAnchor } from "@/lib/search-utils";
 import { formatNumber } from "@/lib/utils";
 
 interface TournamentInsightsPanelProps {
@@ -42,11 +44,11 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
           {events.length > 0 ? (
             <div className="grid min-w-0 gap-2 sm:grid-cols-2">
               {events.map((event) => (
-                <article key={event.eventId} className="min-w-0 rounded-md border border-court-line bg-court-elevated p-3">
+                <Link key={event.eventId} href={`/resources/${searchAnchor(event.eventName)}`} className="group min-w-0 rounded-md border border-court-line bg-court-elevated p-3 transition-colors hover:border-cyan-400">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{event.category}</div>
-                      <div className="mt-0.5 break-words font-semibold leading-5 text-white">{event.eventName}</div>
+                      <div className="mt-0.5 break-words font-semibold leading-5 text-white group-hover:text-cyan-300">{event.eventName}</div>
                     </div>
                     <div className="shrink-0 rounded bg-cyan-400/10 px-2 py-1 text-xs font-semibold tabular-nums text-cyan-300">
                       best #{event.bestFinish}
@@ -60,7 +62,8 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
                   <div className="mt-2 break-words text-xs leading-5 text-zinc-500">
                     Team {event.teamDesignations.join(", ") || "—"} · {event.participantNames.length} competitor{event.participantNames.length === 1 ? "" : "s"}
                   </div>
-                </article>
+                  <div className="mt-2 text-xs font-medium text-cyan-300">Open event library →</div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -79,7 +82,14 @@ export function TournamentInsightsPanel({ insights }: TournamentInsightsPanelPro
                 const partnershipKey = partnership.participantNames.map((name) => name.toLowerCase()).join("|");
                 return (
                   <article key={partnershipKey} className="min-w-0 rounded-md border border-court-line bg-court-elevated p-3">
-                    <div className="break-words font-semibold leading-5 text-white">{partnership.participantNames.join(" + ")}</div>
+                    <div className="flex flex-wrap gap-x-1 break-words font-semibold leading-5 text-white">
+                      {partnership.participantNames.map((name, index) => (
+                        <span key={`${partnership.participantIds[index] ?? name}-${index}`}>
+                          {index > 0 ? <span className="mr-1 text-zinc-500">+</span> : null}
+                          {partnership.participantIds[index] ? <Link href={`/profile/${partnership.participantIds[index]}`} className="hover:text-cyan-300">{name}</Link> : name}
+                        </span>
+                      ))}
+                    </div>
                     <div className="mt-1 break-words text-xs leading-5 text-zinc-500">
                       {partnership.eventNames.join(", ") || "Event unavailable"}
                     </div>

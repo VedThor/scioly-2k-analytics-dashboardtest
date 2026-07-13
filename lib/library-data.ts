@@ -85,6 +85,20 @@ const loadCachedActiveLibraryItems = unstable_cache(
   { revalidate: 60, tags: [libraryCacheTag] }
 );
 
+async function queryConfiguredEventNames() {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("events").select("name").order("name");
+  if (error) return [];
+  return (data ?? []).map((row) => optionalText(row.name)).filter((name): name is string => Boolean(name));
+}
+
+const loadCachedConfiguredEventNames = unstable_cache(
+  queryConfiguredEventNames,
+  [libraryCacheTag, "event-names"],
+  { revalidate: 60, tags: [libraryCacheTag] }
+);
+
 export async function getManagedLibraryItems() {
   if (!hasSupabaseAdminConfig()) return [];
   return queryLibraryItems(true);
@@ -178,10 +192,15 @@ function liveOnlyEvent(slug: string, name: string, items: LibraryItem[]): Scioly
 }
 
 export async function getLibraryEvents(): Promise<SciolyEventHub[]> {
-  const liveItems = hasSupabaseAdminConfig() ? await loadCachedActiveLibraryItems() : [];
-  if (liveItems.length === 0) return sciolyEvents.map(cloneStaticEvent);
-
+  const configured = hasSupabaseAdminConfig();
+  const [liveItems, configuredEventNames] = configured
+    ? await Promise.all([loadCachedActiveLibraryItems(), loadCachedConfiguredEventNames()])
+    : [[], []];
   const bySlug = new Map(sciolyEvents.map((event) => [event.slug, cloneStaticEvent(event)]));
+  for (const name of configuredEventNames) {
+    const slug = slugify(name);
+    if (slug && !bySlug.has(slug)) bySlug.set(slug, liveOnlyEvent(slug, name, []));
+  }
   const grouped = new Map<string, LibraryItem[]>();
   for (const item of liveItems) {
     const items = grouped.get(item.eventSlug);
@@ -228,13 +247,10 @@ export async function getLibraryEventOptions(): Promise<LibraryEventOption[]> {
   const items = await getManagedLibraryItems();
   for (const item of items) options.set(item.eventSlug, { slug: item.eventSlug, name: item.eventName });
 
-  const supabase = getSupabaseAdmin();
-  if (supabase) {
-    const { data } = await supabase.from("events").select("name").order("name");
-    for (const event of data ?? []) {
-      const name = optionalText(event.name);
-      const slug = name ? slugify(name) : "";
-      if (name && slug && !options.has(slug)) options.set(slug, { slug, name });
+  if (hasSupabaseAdminConfig()) {
+    for (const name of await loadCachedConfiguredEventNames()) {
+      const slug = slugify(name);
+      if (slug && !options.has(slug)) options.set(slug, { slug, name });
     }
   }
 

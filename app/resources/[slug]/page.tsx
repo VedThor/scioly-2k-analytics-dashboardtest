@@ -45,10 +45,10 @@ export default async function ResourceEventPage({
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Resource coverage" value={`${event.coverageScore}%`} detail={event.readiness} />
-          <StatTile label="Resources" value={event.resources.length} detail="Notes and guides" />
-          <StatTile label="Practice questions" value={event.questions.length} detail="Topic checks" />
-          <StatTile label="Tests" value={event.tests.length} detail="Mini and full sets" />
+          <StatTile href="#topics" label="Resource coverage" value={`${event.coverageScore}%`} detail={event.readiness} />
+          <StatTile href="#resources" label="Resources" value={event.resources.length} detail="Notes and guides" />
+          <StatTile href="#questions" label="Practice questions" value={event.questions.length} detail="Topic checks" />
+          <StatTile href="#tests" label="Tests" value={event.tests.length} detail="Mini and full sets" />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[400px_1fr]">
@@ -120,6 +120,12 @@ export default async function ResourceEventPage({
                 ) : null}
               </article>
             ))}
+            {event.resources.length === 0 ? (
+              <div className="col-span-full rounded-md border border-dashed border-court-line p-6 text-center">
+                <p className="font-medium text-white">No resources added yet</p>
+                <p className="mt-1 text-sm text-zinc-500">An officer can add the first guide, link, or cheat sheet from Manage library.</p>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -143,6 +149,7 @@ export default async function ResourceEventPage({
                   </details>
                 </article>
               ))}
+              {event.questions.length === 0 ? <p className="rounded-md border border-dashed border-court-line p-5 text-sm text-zinc-500">No practice questions have been added for this event yet.</p> : null}
             </div>
           </div>
 
@@ -175,6 +182,7 @@ export default async function ResourceEventPage({
                   )}
                 </article>
               ))}
+              {event.tests.length === 0 ? <p className="rounded-md border border-dashed border-court-line p-5 text-sm text-zinc-500">No practice tests have been added for this event yet.</p> : null}
             </div>
           </div>
         </section>

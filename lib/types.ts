@@ -37,6 +37,7 @@ export interface Student {
 
 export interface Team {
   id: string;
+  name?: string;
   schoolName: string;
   teamDesignation: string;
   teamOvr: number;
@@ -276,6 +277,7 @@ export interface PlayerDetail extends Student {
 
 export interface TeamComparison {
   id: string;
+  name?: string;
   schoolName: string;
   designation: string;
   teamReadiness: number;

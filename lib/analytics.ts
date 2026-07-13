@@ -123,7 +123,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
 
     return {
       teamId: team?.id,
-      teamName: team ? `${team.schoolName} ${team.teamDesignation}` : "Unassigned",
+      teamName: team ? team.name || `${team.schoolName} ${team.teamDesignation}` : "Unassigned",
       teamDesignation: team?.teamDesignation ?? "-"
     };
   }
@@ -457,6 +457,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
 
       return {
         id: team.id,
+        name: team.name,
         schoolName: team.schoolName,
         designation: team.teamDesignation,
         teamReadiness: calculateTeamReadiness(members),
@@ -482,8 +483,11 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   function getRosterSeedForDragDrop() {
     const teamRosters = getTeamComparisons().map((team) => ({
       id: team.id,
-      label: `${team.schoolName} ${team.designation}`,
+      name: team.name || `${team.schoolName} ${team.designation}`,
+      schoolName: team.schoolName,
+      label: team.name || `${team.schoolName} ${team.designation}`,
       designation: team.designation,
+      version: dataset.teams.find((entry) => entry.id === team.id)?.version ?? 1,
       readiness: team.teamReadiness,
       members: team.members.map((member) => ({
         id: member.id,

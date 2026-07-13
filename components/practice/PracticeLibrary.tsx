@@ -21,7 +21,7 @@ export function PracticeLibrary({ questions, tests }: { questions: Question[]; t
     : tests.filter((item) => (eventName === "All" || item.eventName === eventName) && (difficulty === "All" || item.difficulty === difficulty) && (!normalized || `${item.title} ${item.description} ${item.eventName}`.toLowerCase().includes(normalized)));
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" data-tour="practice-library">
+    <section id="practice-library" className="scroll-mt-24 min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" data-tour="practice-library">
       <div className="space-y-4 border-b border-court-line p-4 sm:p-5">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Practice type">
           <button type="button" onClick={() => setView("questions")} className={`rounded-md px-4 text-sm font-medium ${view === "questions" ? "bg-white text-black" : "bg-court-elevated text-zinc-600"}`} role="tab" aria-selected={view === "questions"}>Questions ({questions.length})</button>

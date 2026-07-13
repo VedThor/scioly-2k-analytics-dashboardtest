@@ -29,10 +29,10 @@ export default async function ResourcesPage() {
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Event libraries" value={stats.events} detail="Active events" />
-          <StatTile label="Resources" value={stats.resources} detail="Notes, guides, and sheets" />
-          <StatTile label="Practice questions" value={stats.questions} detail="With answers and explanations" />
-          <StatTile label="Practice tests" value={stats.tests} detail="Mini, full, and testoff sets" />
+          <StatTile href="#resource-directory" label="Event libraries" value={stats.events} detail="Active events" />
+          <StatTile href="#resource-directory" label="Resources" value={stats.resources} detail="Notes, guides, and sheets" />
+          <StatTile href="/practice" linkLabel="Browse practice" label="Practice questions" value={stats.questions} detail="With answers and explanations" />
+          <StatTile href="/practice" linkLabel="Browse tests" label="Practice tests" value={stats.tests} detail="Mini, full, and testoff sets" />
         </section>
 
         <ResourceDirectory events={events} />

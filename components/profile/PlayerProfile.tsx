@@ -9,6 +9,7 @@ import { StatTile } from "@/components/StatTile";
 import { PlayerTrendChart } from "@/components/charts/PlayerTrendChart";
 import { PointHistoryTable } from "@/components/points/PointHistoryTable";
 import type { PlayerDetail } from "@/lib/types";
+import { searchAnchor } from "@/lib/search-utils";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
 interface PlayerProfileProps {
@@ -62,9 +63,9 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
               {player.profileEvents && player.profileEvents.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {player.profileEvents.map((event) => (
-                    <span key={event} className="rounded-full bg-court-elevated px-2.5 py-1 text-xs font-medium text-zinc-600">
+                    <Link key={event} href={`/resources/${searchAnchor(event)}`} className="rounded-full bg-court-elevated px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:text-cyan-300">
                       {event}
-                    </span>
+                    </Link>
                   ))}
                 </div>
               ) : null}
@@ -72,6 +73,14 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
           </div>
 
           <div className="flex items-center gap-2">
+            {canRemovePoints ? (
+              <Link
+                href="/admin/manage?tab=points"
+                className="inline-flex h-11 items-center rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white"
+              >
+                Edit logs
+              </Link>
+            ) : null}
             {mode === "modal" ? (
               <Link
                 href={`/profile/${player.id}`}
@@ -145,9 +154,9 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {player.eventBreakdowns.length > 0 ? (
               player.eventBreakdowns.map((event) => (
-                <div key={event.eventId} className="rounded-md border border-court-line bg-court-panel p-4">
+                <Link key={event.eventId} href={`/resources/${searchAnchor(event.eventName)}`} className="group rounded-md border border-court-line bg-court-panel p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
                   <div className="text-xs font-black uppercase text-zinc-500">{event.category}</div>
-                  <div className="mt-1 min-h-10 text-lg font-black text-white">{event.eventName}</div>
+                  <div className="mt-1 min-h-10 text-lg font-black text-white group-hover:text-cyan-300">{event.eventName}</div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-[11px] font-black uppercase text-zinc-500">Times</div>
@@ -170,7 +179,8 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
                       <div className="font-black text-white">#{event.bestFinish}</div>
                     </div>
                   </div>
-                </div>
+                  <div className="mt-3 text-sm font-medium text-cyan-300">Open event library →</div>
+                </Link>
               ))
             ) : (
               <div className="rounded-md border border-court-line bg-court-panel p-4 text-sm text-zinc-500">
@@ -221,7 +231,7 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
                     <tr key={row.id} className="border-t border-court-line">
                       <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 font-bold text-white">{row.tournament}</td>
-                      <td className="px-4 py-3 text-white">{row.event}</td>
+                      <td className="px-4 py-3 text-white"><Link href={`/resources/${searchAnchor(row.event)}`} className="hover:text-cyan-300">{row.event}</Link></td>
                       <td className="px-4 py-3 text-zinc-500">{row.participantNames.join(", ")}</td>
                       <td className="px-4 py-3 font-black text-white">#{row.rank}</td>
                       <td className="px-4 py-3 font-black">{row.isMedal ? <span className="text-amber-200">Yes</span> : <span className="text-zinc-500">No</span>}</td>

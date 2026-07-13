@@ -1,0 +1,65 @@
+.printArea {
+  position: relative;
+}
+
+@media print {
+  .printArea,
+  .printArea * {
+    visibility: visible !important;
+  }
+
+  .printArea {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .printArea * {
+    color: #111 !important;
+    border-color: #d4d4d4 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .desktopTable {
+    display: block !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .mobileCards {
+    display: none !important;
+  }
+
+  .printArea table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .printArea thead {
+    display: table-header-group;
+  }
+
+  .printArea tr {
+    break-inside: avoid;
+  }
+
+  .printArea th,
+  .printArea td {
+    padding: 5px 6px !important;
+  }
+
+  .printArea a {
+    text-decoration: none !important;
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.45in;
+  }
+}

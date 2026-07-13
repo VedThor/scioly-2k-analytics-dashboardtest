@@ -115,6 +115,17 @@ const pageCandidates: SearchCandidate[] = [
     quickRank: 11
   },
   {
+    id: "admin:reports",
+    kind: "page",
+    group: "Administration",
+    title: "Generate reports",
+    subtitle: "Filter team data, preview a report, print it, or download CSV",
+    href: "/admin/reports",
+    keywords: ["report", "export", "print", "csv", "analytics", "team report", "student report"],
+    minimumRole: "admin",
+    quickRank: 11
+  },
+  {
     id: "admin:manage",
     kind: "page",
     group: "Administration",
@@ -130,9 +141,9 @@ const pageCandidates: SearchCandidate[] = [
     kind: "page",
     group: "Administration",
     title: "Edit team rosters",
-    subtitle: "Assign students to an active team or Unassigned",
+    subtitle: "Create, rename, remove, and assign students to any team",
     href: "/admin/manage?tab=roster",
-    keywords: ["roster", "move students", "assign", "team a", "team b", "team c", "unassigned"],
+    keywords: ["roster", "move students", "assign", "create team", "rename team", "remove team", "unassigned"],
     minimumRole: "admin"
   },
   {
@@ -140,9 +151,9 @@ const pageCandidates: SearchCandidate[] = [
     kind: "page",
     group: "Administration",
     title: "Manage all points",
-    subtitle: "Add approved points or remove an incorrect point record",
+    subtitle: "Add, edit, or remove any point record",
     href: "/admin/manage?tab=points",
-    keywords: ["admin points", "manual points", "add points", "remove points", "point records", "adjustment"],
+    keywords: ["admin points", "manual points", "add points", "edit points", "remove points", "point records", "adjustment"],
     minimumRole: "admin"
   },
   {

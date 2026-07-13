@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Check, Loader2, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -82,7 +83,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
               items.map((item) => (
                 <tr key={item.id} className="border-t border-court-line">
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
+                    <Link href={`/profile/${item.student.id}`} className="flex items-center gap-3 rounded hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
                       <Avatar name={item.student.name} size="sm" />
                       <div>
                         <div className="font-black text-white">{item.student.name}</div>
@@ -90,7 +91,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                           {item.student.teamDesignation} Team
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-4 py-4 font-bold text-white">{activityLabels[item.activityType]}</td>
                   <td className="px-4 py-4 text-zinc-500">{formatDate(item.submittedAt)}</td>

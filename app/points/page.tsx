@@ -18,19 +18,24 @@ export default async function PointsPage() {
           label="Available to every team member"
           title="Log practice points"
           description="Submit your own study, testing, build, or custom practice. Officers review every entry before it affects your approved preparation total. Officers and admins use this same page for their own work."
+          actions={currentUser.role === "admin" ? (
+            <Link href="/admin/manage?tab=points" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
+              Manage all point logs
+            </Link>
+          ) : undefined}
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Approved · 30 days" value={formatNumber(player.thirtyDayPoints)} detail="Used in your preparation score" />
-          <StatTile label="Awaiting approval" value={formatNumber(player.pendingPracticePoints)} detail="Submitted but not counted yet" />
-          <StatTile label="Approved practice · all time" value={formatNumber(player.approvedPracticePoints)} />
-          <StatTile label="Competition points" value={formatNumber(player.competitionPoints)} detail="Kept separate from practice" />
+          <StatTile href="#submission-history" label="Approved · 30 days" value={formatNumber(player.thirtyDayPoints)} detail="Used in your preparation score" />
+          <StatTile href="#submission-history" label="Awaiting approval" value={formatNumber(player.pendingPracticePoints)} detail="Submitted but not counted yet" />
+          <StatTile href="#submission-history" label="Approved practice · all time" value={formatNumber(player.approvedPracticePoints)} />
+          <StatTile href={`/profile/${currentUser.id}`} linkLabel="Open your profile" label="Competition points" value={formatNumber(player.competitionPoints)} detail="Kept separate from practice" />
         </section>
 
         <section className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
           <div data-tour="points-form"><QuickPointLogForm currentUser={currentUser} /></div>
 
-          <div className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm">
+          <div id="submission-history" className="scroll-mt-24 overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm">
             <div className="border-b border-court-line p-5">
               <h2 className="text-xl font-semibold text-white">Your submission history</h2>
               <p className="mt-1 text-sm text-zinc-500">Pending entries can be reviewed by an officer. Rejected entries include the review note when available.</p>
@@ -46,3 +51,4 @@ export default async function PointsPage() {
     </AppShell>
   );
 }
+import Link from "next/link";

@@ -10,10 +10,12 @@ import { getManagePageData } from "@/lib/data";
 export default async function ManagePage({
   searchParams
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; point?: string }>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, point } = await searchParams;
   const initialTab = tab === "points" || tab === "categories" || tab === "accounts" ? tab : "roster";
+  const requestedPointId = Number(point);
+  const initialPointId = Number.isInteger(requestedPointId) && requestedPointId > 0 ? requestedPointId : undefined;
   const { currentUser, rosters, students } = await getManagePageData();
 
   return (
@@ -22,7 +24,7 @@ export default async function ManagePage({
         <PageHeader label="Admin tools" title="Manage team" description="Update rosters, add or remove point records, manage practice categories, and edit accounts. Changes are recorded in the audit log." />
         <AdminManageTabs
           roster={<RosterManager rosters={rosters} />}
-          points={<AdminPointManager students={students} />}
+          points={<AdminPointManager students={students} initialPointId={initialPointId} />}
           categories={<CustomCategoryManager />}
           accounts={<AccountManager students={students} />}
           initialTab={initialTab}
