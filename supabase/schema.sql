@@ -3,6 +3,24 @@
 
 create extension if not exists "pgcrypto";
 
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'point-evidence',
+  'point-evidence',
+  false,
+  15728640,
+  array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+    'application/pdf',
+    'video/mp4', 'video/quicktime', 'video/webm',
+    'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm'
+  ]::text[]
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
 create table if not exists public.students (
   id uuid primary key default gen_random_uuid(),
   auth_user_id uuid unique references auth.users(id) on delete set null,
@@ -23,6 +41,9 @@ create table if not exists public.students (
   prev_ovr numeric(5, 2) not null default 60.00,
   prev_avg_placement numeric(6, 2),
   last_snapshot_date timestamptz,
+  terms_accepted_at timestamptz,
+  privacy_acknowledged_at timestamptz,
+  legal_version text,
   created_at timestamptz not null default now()
 );
 
@@ -33,6 +54,9 @@ alter table public.students add column if not exists profile_events text[] not n
 alter table public.students add column if not exists is_active boolean not null default true;
 alter table public.students add column if not exists archived_at timestamptz;
 alter table public.students add column if not exists archived_by uuid references public.students(id);
+alter table public.students add column if not exists terms_accepted_at timestamptz;
+alter table public.students add column if not exists privacy_acknowledged_at timestamptz;
+alter table public.students add column if not exists legal_version text;
 update public.students set is_active = true where is_active is null;
 alter table public.students alter column is_active set default true;
 alter table public.students alter column is_active set not null;
