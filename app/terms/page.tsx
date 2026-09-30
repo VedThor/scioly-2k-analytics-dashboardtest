@@ -15,14 +15,22 @@ const sections = [
     items: [
       "Submit accurate practice, testoff, and competition information.",
       "Upload only evidence that you created, are allowed to share, or have permission to use.",
+      "Publish only flashcards you created or are authorized to share. Do not copy official rulebooks, paid resources, tournament test banks, answer keys, or other copyrighted material into a deck without permission.",
       "Do not upload harmful code, unlawful or inappropriate content, confidential third-party information, or unnecessary sensitive personal information.",
-      "Do not attempt to bypass access controls, impersonate another person, disrupt the service, or manipulate rankings and points."
+      "Do not attempt to bypass access controls, impersonate another person, disrupt the service, or manipulate rankings, points, or flashcard votes."
     ]
   },
   {
     title: "Point submissions and evidence",
     paragraphs: [
       "Practice points remain pending until an authorized officer or administrator reviews them. Reviewers may approve, reject, edit, or remove records to keep team data accurate. You are responsible for ensuring that uploaded files and linked Google content remain available to the reviewers and use appropriate sharing permissions."
+    ]
+  },
+  {
+    title: "Shared flashcards",
+    paragraphs: [
+      "When you publish a deck, you allow authorized team members to view and study it inside the team workspace. You keep ownership of your original content and give the team a limited permission to store, display, and copy it only as needed to operate the workspace. Deck authors and authorized officers may remove inaccurate, unsafe, infringing, private, or disruptive content. Votes are limited to one current choice per member for each deck.",
+      "Automated file or legal screening cannot determine whether you own content or whether every use is lawful. You remain responsible for the material you publish and for following school policies, tournament rules, and applicable intellectual-property and privacy requirements."
     ]
   },
   {
