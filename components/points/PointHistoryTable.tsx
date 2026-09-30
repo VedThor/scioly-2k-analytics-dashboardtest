@@ -95,6 +95,7 @@ export function PointHistoryTable({
                     <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
                     <td className="px-4 py-3 font-medium text-white">
                       <div>{row.activity}</div>
+                      {row.details ? <div className="mt-1 max-w-md whitespace-pre-wrap text-xs font-normal leading-5 text-zinc-500">{row.details}</div> : null}
                       <PointEvidenceList evidence={row.evidence} />
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-white">{formatNumber(row.points)}</td>
