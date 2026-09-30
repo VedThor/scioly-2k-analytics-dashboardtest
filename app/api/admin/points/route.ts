@@ -4,7 +4,7 @@ import { getCurrentDemoUser } from "@/lib/analytics";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs, mockStudents } from "@/lib/seed";
-import { pointEvidenceForClient } from "@/lib/point-evidence";
+import { pointActivityDetailsFromMetadata, pointEvidenceForClient } from "@/lib/point-evidence";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
 import type { ActivityType } from "@/lib/types";
@@ -25,6 +25,7 @@ function pointRow(
     activityType,
     activity: String(row.custom_label ?? "") || activityLabels[activityType] || "Custom activity",
     customLabel: typeof row.custom_label === "string" ? row.custom_label : null,
+    details: pointActivityDetailsFromMetadata(row.metadata) ?? null,
     points: Number(row.points ?? 0),
     minutes: Number(row.minutes ?? 0),
     quantity: typeof row.quantity === "number" ? row.quantity : null,
@@ -90,6 +91,7 @@ export async function GET(request: Request) {
         activityType: point.activityType,
         activity: point.customLabel || point.activityType.replaceAll("_", " "),
         customLabel: point.customLabel ?? null,
+        details: point.details ?? null,
         points: point.points,
         minutes: point.minutes,
         quantity: point.quantity ?? null,
