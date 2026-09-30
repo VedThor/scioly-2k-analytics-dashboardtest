@@ -96,6 +96,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-bold text-white">{item.customLabel || activityLabels[item.activityType]}</div>
+                    {item.details ? <p className="mt-1 max-w-md whitespace-pre-wrap text-xs leading-5 text-zinc-500">{item.details}</p> : null}
                     <PointEvidenceList evidence={item.evidence} />
                   </td>
                   <td className="px-4 py-4 text-zinc-500">{formatDate(item.submittedAt)}</td>
