@@ -47,7 +47,7 @@ export async function GET(
 
   const { data, error: signedUrlError } = await supabase.storage
     .from(POINT_EVIDENCE_BUCKET)
-    .createSignedUrl(evidence.storagePath, 60);
+    .createSignedUrl(evidence.storagePath, 60, { download: evidence.name });
   if (signedUrlError || !data?.signedUrl) {
     return NextResponse.json({ ok: false, error: "This evidence file is temporarily unavailable." }, { status: 503 });
   }
