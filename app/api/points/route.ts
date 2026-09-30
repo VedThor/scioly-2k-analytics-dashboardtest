@@ -82,6 +82,7 @@ export async function POST(request: Request) {
     customPoints?: number;
     customLabel?: string;
     customCategoryId?: number;
+    activityDetails?: string;
     evidenceFiles?: unknown;
     evidenceLink?: string;
   } | null;
@@ -117,6 +118,16 @@ export async function POST(request: Request) {
 
   if (body.customLabel !== undefined && typeof body.customLabel !== "string") {
     return NextResponse.json({ ok: false, error: "Custom label must be text." }, { status: 400 });
+  }
+  if (body.activityDetails !== undefined && typeof body.activityDetails !== "string") {
+    return NextResponse.json({ ok: false, error: "Activity details must be text." }, { status: 400 });
+  }
+  const activityDetails = body.activityDetails?.trim();
+  if (body.activityType === "custom_activity" && !activityDetails) {
+    return NextResponse.json({ ok: false, error: "Describe what you did for this custom activity." }, { status: 400 });
+  }
+  if (activityDetails && activityDetails.length > 500) {
+    return NextResponse.json({ ok: false, error: "Activity details must be 500 characters or fewer." }, { status: 400 });
   }
   if (body.evidenceFiles !== undefined && !Array.isArray(body.evidenceFiles)) {
     return NextResponse.json({ ok: false, error: "Evidence files must be provided as a list." }, { status: 400 });
@@ -233,7 +244,7 @@ export async function POST(request: Request) {
   let insertedLog: Record<string, unknown> | null = null;
   if (supabase) {
     const metadata: Record<string, unknown> = body.activityType === "custom_activity"
-      ? { requestedLabel: body.customLabel ?? null }
+      ? { requestedLabel: body.customLabel ?? null, activityDetails }
       : {};
     if (evidence.length > 0) metadata.evidence = evidence;
 
