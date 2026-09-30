@@ -108,6 +108,33 @@ export function evidenceStorageExtension(mimeType: string) {
   return extensionByMimeType[mimeType.toLowerCase()] ?? "";
 }
 
+function ascii(bytes: Uint8Array, start: number, length: number) {
+  return String.fromCharCode(...bytes.slice(start, start + length));
+}
+
+export function evidenceBytesMatchMimeType(mimeType: string, bytes: Uint8Array) {
+  const normalized = mimeType.toLowerCase();
+  const starts = (...signature: number[]) => signature.every((value, index) => bytes[index] === value);
+  if (normalized === "image/jpeg") return starts(0xff, 0xd8, 0xff);
+  if (normalized === "image/png") return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  if (normalized === "image/gif") return ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a";
+  if (normalized === "image/webp") return ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP";
+  if (normalized === "image/heic" || normalized === "image/heif") {
+    if (ascii(bytes, 4, 4) !== "ftyp") return false;
+    const brands = ascii(bytes, 8, Math.min(32, Math.max(0, bytes.length - 8)));
+    return ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].some((brand) => brands.includes(brand));
+  }
+  if (normalized === "application/pdf") return ascii(bytes, 0, Math.min(1024, bytes.length)).includes("%PDF-");
+  if (normalized === "video/mp4" || normalized === "video/quicktime" || normalized === "audio/mp4") {
+    return bytes.length >= 12 && ascii(bytes, 4, 4) === "ftyp";
+  }
+  if (normalized === "video/webm" || normalized === "audio/webm") return starts(0x1a, 0x45, 0xdf, 0xa3);
+  if (normalized === "audio/mpeg") return ascii(bytes, 0, 3) === "ID3" || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+  if (normalized === "audio/wav" || normalized === "audio/x-wav") return ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WAVE";
+  if (normalized === "audio/ogg") return ascii(bytes, 0, 4) === "OggS";
+  return false;
+}
+
 export function normalizeGoogleDriveUrl(value: string | undefined | null) {
   const trimmed = value?.trim();
   if (!trimmed) return null;

@@ -71,6 +71,17 @@ const pageCandidates: SearchCandidate[] = [
     quickRank: 7
   },
   {
+    id: "page:flashcards",
+    kind: "page",
+    group: "Pages",
+    title: "Team flashcards",
+    subtitle: "Create, import, share, study, and vote on team decks",
+    href: "/flashcards",
+    keywords: ["flashcards", "cards", "csv", "import", "share", "study deck", "upvote", "downvote"],
+    minimumRole: "viewer",
+    quickRank: 8
+  },
+  {
     id: "admin:approve",
     kind: "page",
     group: "Administration",

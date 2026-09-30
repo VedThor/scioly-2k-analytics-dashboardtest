@@ -573,7 +573,7 @@ export const sciolyEvents: SciolyEventHub[] = [
   eventHub({
     name: "Thermodynamics",
     slug: "thermodynamics",
-    category: "Hybrid",
+    category: "Study",
     tagline: "Thermal physics, prediction, and a lamp-heated water device.",
     description: "Connect microscopic models, heat transfer, phase behavior, calorimetry, and thermodynamic laws to a device that heats 100 mL of water and to a defensible final-temperature prediction.",
     starterPath: [
