@@ -402,6 +402,47 @@ create unique index if not exists practice_test_attempts_one_open_idx
 on public.practice_test_attempts (student_id, test_id)
 where status = 'in_progress';
 
+-- Team-created flashcards. Members use authenticated route handlers; direct
+-- REST access stays closed so author IDs and individual votes are not exposed.
+create table if not exists public.flashcard_decks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (length(btrim(title)) between 1 and 120),
+  description text not null default '' check (length(description) <= 600),
+  event_name text not null check (length(btrim(event_name)) between 1 and 120),
+  author_id uuid not null references public.students(id) on delete restrict,
+  is_published boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.flashcards (
+  id bigserial primary key,
+  deck_id uuid not null references public.flashcard_decks(id) on delete cascade,
+  front text not null check (length(btrim(front)) between 1 and 1000),
+  back text not null check (length(btrim(back)) between 1 and 5000),
+  position integer not null check (position between 0 and 199),
+  created_at timestamptz not null default now(),
+  unique (deck_id, position)
+);
+
+create table if not exists public.flashcard_votes (
+  deck_id uuid not null references public.flashcard_decks(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  value smallint not null check (value in (-1, 1)),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (deck_id, student_id)
+);
+
+create index if not exists flashcard_decks_published_created_idx
+on public.flashcard_decks (is_published, created_at desc);
+
+create index if not exists flashcards_deck_position_idx
+on public.flashcards (deck_id, position);
+
+create index if not exists flashcard_votes_deck_idx
+on public.flashcard_votes (deck_id);
+
 alter table public.grind_points add column if not exists custom_label text;
 alter table public.grind_points add column if not exists custom_category_id integer references public.custom_point_categories(id);
 alter table public.grind_points add column if not exists metadata jsonb not null default '{}'::jsonb;
@@ -1390,6 +1431,9 @@ alter table public.custom_point_categories enable row level security;
 alter table public.library_items enable row level security;
 alter table public.practice_test_questions enable row level security;
 alter table public.practice_test_attempts enable row level security;
+alter table public.flashcard_decks enable row level security;
+alter table public.flashcards enable row level security;
+alter table public.flashcard_votes enable row level security;
 alter table public.seasons enable row level security;
 alter table public.testoff_sessions enable row level security;
 alter table public.testoff_results enable row level security;
@@ -1571,6 +1615,10 @@ drop policy if exists "practice_questions_officer_update" on public.practice_tes
 -- Attempts contain answer-key snapshots, so members never read/write this
 -- table directly. Authenticated route handlers validate ownership and use the
 -- service role. Enabling RLS without member policies keeps direct REST closed.
+
+-- Flashcard decks, cards, and individual vote records follow the same closed
+-- API-only pattern. The API returns author display names and aggregate counts,
+-- but never another member's vote row or identifier.
 
 drop policy if exists "seasons_select_logged_in" on public.seasons;
 create policy "seasons_select_logged_in"
