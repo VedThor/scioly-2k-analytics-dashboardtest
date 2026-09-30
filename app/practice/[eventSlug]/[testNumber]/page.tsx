@@ -68,7 +68,7 @@ export default async function PracticeSetPage({
           <div className="flex items-end justify-between gap-4 border-b border-court-line pb-4 print:border-zinc-300">
             <div>
               <div className="text-sm font-medium text-cyan-300 print:text-black">Test booklet</div>
-              <h2 className="mt-1 text-xl font-semibold text-white print:text-black">Answer every prompt</h2>
+              <h2 className="mt-1 text-xl font-semibold text-white print:text-black">Answer every question</h2>
             </div>
             <div className="text-sm text-zinc-500 print:text-black">Name: ____________________</div>
           </div>
@@ -82,7 +82,18 @@ export default async function PracticeSetPage({
                   <div className="min-w-0 flex-1">
                     <p className="font-medium leading-7 text-white print:text-black">{question.prompt}</p>
                     <div className="mt-3 text-xs font-medium text-zinc-500 print:text-black">{question.points} points</div>
-                    <div className="mt-6 h-16 border-b border-dashed border-court-control print:border-zinc-400" aria-hidden="true" />
+                    {question.options?.length ? (
+                      <div className="mt-4 grid gap-2 text-sm leading-6 text-zinc-500 print:text-black">
+                        {question.options.map((option, optionIndex) => (
+                          <div key={option} className="flex gap-3 rounded-md border border-court-line px-3 py-2 print:border-zinc-300">
+                            <span className="font-semibold">{String.fromCharCode(65 + optionIndex)}.</span>
+                            <span>{option}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-6 h-16 border-b border-dashed border-court-control print:border-zinc-400" aria-hidden="true" />
+                    )}
                   </div>
                 </div>
               </li>
@@ -96,6 +107,11 @@ export default async function PracticeSetPage({
             {test.questions.map((question) => (
               <article key={question.number} className="break-inside-avoid rounded-md border border-court-line bg-court-elevated p-4 print:border-zinc-300 print:bg-white">
                 <div className="text-sm font-semibold text-cyan-300 print:text-black">Question {question.number} · {question.points} points</div>
+                {question.options?.length && question.correctOption !== undefined ? (
+                  <p className="mt-2 font-semibold text-white print:text-black">
+                    Correct answer: {String.fromCharCode(65 + question.correctOption)}. {question.options[question.correctOption]}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-sm leading-6 text-zinc-500 print:text-black">{question.answer}</p>
               </article>
             ))}
