@@ -4,10 +4,54 @@ import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs } from "@/lib/seed";
+import {
+  MAX_POINT_EVIDENCE_FILES,
+  MAX_POINT_EVIDENCE_TOTAL_BYTES,
+  normalizeGoogleDriveUrl,
+  POINT_EVIDENCE_BUCKET,
+  validateUploadDescriptor,
+  type PointEvidenceUploadDescriptor,
+  type StoredPointEvidence
+} from "@/lib/point-evidence";
 import { getSupabaseAdmin, hasSupabaseConfig, isDemoMode } from "@/lib/supabase";
 import type { ActivityType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+type AdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+
+async function removeEvidenceUploads(supabase: AdminClient, files: PointEvidenceUploadDescriptor[]) {
+  if (files.length === 0) return;
+  await supabase.storage.from(POINT_EVIDENCE_BUCKET).remove(files.map((file) => file.storagePath));
+}
+
+async function verifyEvidenceUploads(supabase: AdminClient, studentId: string, files: PointEvidenceUploadDescriptor[]) {
+  if (files.length === 0) return null;
+  const batchId = files[0].storagePath.split("/")[1];
+  if (!batchId || files.some((file) => file.storagePath.split("/")[1] !== batchId)) {
+    return "Evidence files must come from the same upload batch.";
+  }
+
+  const { data, error } = await supabase.storage
+    .from(POINT_EVIDENCE_BUCKET)
+    .list(`${studentId}/${batchId}`, { limit: MAX_POINT_EVIDENCE_FILES + 5 });
+  if (error) return "Uploaded evidence could not be verified.";
+
+  for (const file of files) {
+    const objectName = file.storagePath.split("/").at(-1);
+    const stored = data?.find((entry) => entry.name === objectName);
+    const storedSize = Number(stored?.metadata?.size);
+    const storedMimeType = typeof stored?.metadata?.mimetype === "string" ? stored.metadata.mimetype.toLowerCase() : null;
+    if (
+      !stored ||
+      (Number.isFinite(storedSize) && storedSize !== file.sizeBytes) ||
+      (storedMimeType && storedMimeType !== file.mimeType)
+    ) {
+      return `${file.name} did not finish uploading. Please try again.`;
+    }
+  }
+  return null;
+}
 
 function pointSnapshot(row: Record<string, unknown>) {
   return {
@@ -38,6 +82,8 @@ export async function POST(request: Request) {
     customPoints?: number;
     customLabel?: string;
     customCategoryId?: number;
+    evidenceFiles?: unknown;
+    evidenceLink?: string;
   } | null;
 
   if (!body || !body.activityType || !Object.prototype.hasOwnProperty.call(activityLabels, body.activityType)) {
@@ -72,6 +118,12 @@ export async function POST(request: Request) {
   if (body.customLabel !== undefined && typeof body.customLabel !== "string") {
     return NextResponse.json({ ok: false, error: "Custom label must be text." }, { status: 400 });
   }
+  if (body.evidenceFiles !== undefined && !Array.isArray(body.evidenceFiles)) {
+    return NextResponse.json({ ok: false, error: "Evidence files must be provided as a list." }, { status: 400 });
+  }
+  if (body.evidenceLink !== undefined && typeof body.evidenceLink !== "string") {
+    return NextResponse.json({ ok: false, error: "Evidence link must be text." }, { status: 400 });
+  }
 
   const authenticatedStudent = await getAuthenticatedStudent();
   const currentUser = authenticatedStudent ?? (isDemoMode() ? getCurrentDemoUser() : null);
@@ -88,6 +140,36 @@ export async function POST(request: Request) {
   }
 
   const studentId = currentUser.id;
+  const rawEvidenceFiles = Array.isArray(body.evidenceFiles) ? body.evidenceFiles : [];
+  if (rawEvidenceFiles.length > MAX_POINT_EVIDENCE_FILES) {
+    return NextResponse.json(
+      { ok: false, error: `You can attach up to ${MAX_POINT_EVIDENCE_FILES} files to one submission.` },
+      { status: 400 }
+    );
+  }
+
+  const expectedBatchId = rawEvidenceFiles[0] && typeof rawEvidenceFiles[0] === "object" && !Array.isArray(rawEvidenceFiles[0])
+    ? String((rawEvidenceFiles[0] as Record<string, unknown>).storagePath ?? "").split("/")[1]
+    : undefined;
+  const evidenceFiles = rawEvidenceFiles.map((entry) => validateUploadDescriptor(entry, studentId, expectedBatchId));
+  if (evidenceFiles.some((entry) => !entry)) {
+    return NextResponse.json({ ok: false, error: "One or more evidence uploads are invalid." }, { status: 400 });
+  }
+  const validatedEvidenceFiles = evidenceFiles as PointEvidenceUploadDescriptor[];
+  const evidenceTotalBytes = validatedEvidenceFiles.reduce((total, file) => total + file.sizeBytes, 0);
+  if (evidenceTotalBytes > MAX_POINT_EVIDENCE_TOTAL_BYTES) {
+    return NextResponse.json({ ok: false, error: "Evidence files can total no more than 50 MB." }, { status: 400 });
+  }
+
+  const evidenceLinkInput = body.evidenceLink?.trim();
+  const evidenceLink = normalizeGoogleDriveUrl(evidenceLinkInput);
+  if (evidenceLinkInput && !evidenceLink) {
+    return NextResponse.json(
+      { ok: false, error: "Enter a valid Google Drive or Google Docs sharing link." },
+      { status: 400 }
+    );
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const submissionsToday = mockPointLogs.filter(
     (log) => log.studentId === studentId && log.submittedAt.slice(0, 10) === today
@@ -115,10 +197,46 @@ export async function POST(request: Request) {
       { status: 503 }
     );
   }
+  if (!supabase && validatedEvidenceFiles.length > 0) {
+    return NextResponse.json(
+      { ok: false, error: "Evidence storage is not configured for this deployment." },
+      { status: 503 }
+    );
+  }
+
+  if (supabase) {
+    const verificationError = await verifyEvidenceUploads(supabase, studentId, validatedEvidenceFiles);
+    if (verificationError) {
+      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
+      return NextResponse.json({ ok: false, error: verificationError }, { status: 400 });
+    }
+  }
+
+  const evidence: StoredPointEvidence[] = [
+    ...validatedEvidenceFiles.map((file) => ({
+      id: file.id,
+      kind: "file" as const,
+      name: file.name,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      storagePath: file.storagePath
+    })),
+    ...(evidenceLink ? [{
+      id: crypto.randomUUID(),
+      kind: "link" as const,
+      name: "Google Drive evidence",
+      externalUrl: evidenceLink
+    }] : [])
+  ];
 
   let acceptedPoints = points;
   let insertedLog: Record<string, unknown> | null = null;
   if (supabase) {
+    const metadata: Record<string, unknown> = body.activityType === "custom_activity"
+      ? { requestedLabel: body.customLabel ?? null }
+      : {};
+    if (evidence.length > 0) metadata.evidence = evidence;
+
     const { data, error } = await supabase
       .from("grind_points")
       .insert({
@@ -129,13 +247,14 @@ export async function POST(request: Request) {
         quantity: body.quantity ?? null,
         custom_label: body.activityType === "custom_activity" ? body.customLabel?.trim() || "Custom Activity" : null,
         custom_category_id: body.customCategoryId ?? null,
-        metadata: body.activityType === "custom_activity" ? { requestedLabel: body.customLabel ?? null } : {},
+        metadata,
         is_approved: false
       })
       .select("*")
       .single();
 
     if (error) {
+      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
       const limitReached = error.message.toLowerCase().includes("daily point log limit");
       return NextResponse.json(
         { ok: false, error: limitReached ? "Daily submission limit reached." : error.message },
@@ -158,6 +277,7 @@ export async function POST(request: Request) {
     });
     if (auditError) {
       await supabase.from("grind_points").delete().eq("id", Number(data?.id));
+      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
       return NextResponse.json(
         { ok: false, error: "The submission was rolled back because its undo record could not be saved." },
         { status: 500 }
@@ -169,7 +289,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     message: `${acceptedPoints} points submitted for officer approval.`,
-    points: acceptedPoints
+    points: acceptedPoints,
+    evidenceCount: evidence.length
   });
 }
 
