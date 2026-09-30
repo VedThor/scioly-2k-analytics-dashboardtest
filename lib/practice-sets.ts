@@ -1,4 +1,4 @@
-import type { Difficulty, SciolyEventHub, SciolyPracticePrompt, SciolyTest } from "@/lib/resource-data";
+import type { Difficulty, SciolyEventHub, SciolyPracticePrompt, SciolyQuestion, SciolyTest } from "@/lib/resource-data";
 
 type PracticeSeed = Pick<SciolyEventHub, "name" | "category" | "description" | "topics" | "starterPath">;
 
@@ -111,6 +111,168 @@ function makeQuestions(seed: PracticeSeed, testIndex: number): SciolyPracticePro
   ];
 }
 
+function makeMcqQuestions(seed: PracticeSeed, testIndex: number): SciolyPracticePrompt[] {
+  const topics = seed.topics.length ? seed.topics : [seed.name];
+  const a = at(topics, testIndex);
+  const b = at(topics, testIndex + 1);
+  const c = at(topics, testIndex + 2);
+  const d = at(topics, testIndex + 3);
+  const firstStep = at(seed.starterPath.length ? seed.starterPath : [seed.description], testIndex);
+
+  return [
+    {
+      number: 1,
+      points: 5,
+      prompt: `Which response would best explain ${a} in a ${seed.name} tournament setting?`,
+      options: [
+        "A memorized definition with no supporting evidence",
+        "A definition, a cause-and-effect mechanism, and a relevant observation or measurement",
+        "A list of related vocabulary in alphabetical order",
+        "A conclusion based only on what usually happens",
+      ],
+      correctOption: 1,
+      answer: `A complete explanation connects an accurate definition of ${a} to a mechanism and evidence that could be observed or measured.`,
+    },
+    {
+      number: 2,
+      points: 5,
+      prompt: `What is the strongest way to compare ${a} with ${b}?`,
+      options: [
+        "Describe only the feature they share",
+        "Choose whichever term sounds more familiar",
+        "State a meaningful distinction, explain their connection, and apply it to a concrete case",
+        "Treat the two ideas as interchangeable",
+      ],
+      correctOption: 2,
+      answer: `A useful comparison defines both ideas, identifies a defensible distinction and connection, and shows why the difference matters in ${seed.name}.`,
+    },
+    {
+      number: 3,
+      points: 5,
+      prompt: `Which plan would produce the most defensible evidence about ${c}?`,
+      options: [
+        "Change several conditions at once and keep only the best result",
+        "Use one trial and omit units to save time",
+        "Start with the conclusion and select observations that agree",
+        "Define the measured outcome, control relevant conditions, repeat the work, and record values with units",
+      ],
+      correctOption: 3,
+      answer: applicationAnswer(seed, c),
+    },
+    {
+      number: 4,
+      points: 5,
+      prompt: `A teammate claims that ${d} alone determines the outcome. Which response is most scientific?`,
+      options: [
+        "Accept the claim because it is simple",
+        "Identify plausible interacting factors and propose evidence that could separate their effects",
+        "Reject the claim without collecting evidence",
+        "Repeat the claim using more technical vocabulary",
+      ],
+      correctOption: 1,
+      answer: "A defensible response considers alternative factors and uses evidence or a controlled comparison to distinguish their effects.",
+    },
+    {
+      number: 5,
+      points: 5,
+      prompt: `Which causal chain involving ${a}, ${b}, and ${c} would earn the most credit?`,
+      options: [
+        "Three topic names joined by unlabeled arrows",
+        "A sequence chosen only because the terms appear in that order in notes",
+        "A logical sequence whose arrows name mechanisms and whose assumptions are stated",
+        "Any sequence, provided it uses all three terms",
+      ],
+      correctOption: 2,
+      answer: "A causal chain must explain every connection and identify an assumption or condition under which the relationship could change or fail.",
+    },
+    {
+      number: 6,
+      points: 5,
+      prompt: `Which version best turns “${firstStep}” into a useful six-minute station?`,
+      options: [
+        "Tell the student to study harder for six minutes",
+        "Assign a specific observable task, require evidence, and score accuracy and reasoning with a short rubric",
+        "Ask the student to reread notes without producing anything",
+        "Score only whether the student finishes early",
+      ],
+      correctOption: 1,
+      answer: "The station should have a time-bounded task, an observable product or measurement, and a rubric that rewards accurate reasoning and evidence.",
+    },
+    {
+      number: 7,
+      points: 5,
+      prompt: `Which sources control a rules-specific decision for ${seed.name}?`,
+      options: [
+        "An old invitational test and an online discussion",
+        "A teammate's memory of last season",
+        "The official 2027 rules, national corrections and clarifications, and tournament-specific notices",
+        "Any study guide with a recent-looking cover",
+      ],
+      correctOption: 2,
+      answer: "Current official rules and updates control. Tournament notices must also be checked for local procedures or modifications.",
+    },
+    {
+      number: 8,
+      points: 5,
+      prompt: "Which post-test correction plan is measurable?",
+      options: [
+        "Review everything sometime before competition",
+        "Choose a specific gap, revisit an authoritative source, and set a numerical or observable retest target",
+        "Memorize the answer key without finding the cause of the error",
+        "Avoid the weakest topic on the next test",
+      ],
+      correctOption: 1,
+      answer: "A useful correction plan identifies the exact gap, matches it to a trustworthy source, and defines what improvement will be measured on the retest.",
+    },
+  ];
+}
+
+export function buildPracticeQuestions(seed: PracticeSeed): SciolyQuestion[] {
+  const topics = seed.topics.length ? seed.topics : [seed.name];
+  const a = at(topics, 0);
+  const b = at(topics, 1);
+  const c = at(topics, 2);
+  const d = at(topics, 3);
+
+  return [
+    {
+      topic: a,
+      difficulty: "Rookie",
+      question: `What makes an explanation of ${a} complete?`,
+      answer: `Define ${a} accurately, describe a cause-and-effect mechanism, and cite one relevant observation or measurement.`,
+      explanation: "Strong Science Olympiad answers connect knowledge to evidence instead of stopping at a memorized definition.",
+    },
+    {
+      topic: `${a} and ${b}`,
+      difficulty: "Rookie",
+      question: `What should a strong comparison of ${a} and ${b} include?`,
+      answer: "One meaningful distinction, one defensible connection, and a concrete situation in which the distinction changes an answer, interpretation, or design choice.",
+      explanation: "Comparisons earn credit when they explain why a similarity or difference matters.",
+    },
+    {
+      topic: c,
+      difficulty: "Pro",
+      question: `How should you separate observation from inference in a station about ${c}?`,
+      answer: "Record what is directly visible or measured first, including units and uncertainty where relevant, then state the principle used to interpret that evidence.",
+      explanation: "Keeping observations separate from conclusions makes the reasoning auditable and reduces overclaiming.",
+    },
+    {
+      topic: d,
+      difficulty: "Pro",
+      question: `What would make a practice investigation or trial involving ${d} defensible?`,
+      answer: applicationAnswer(seed, d),
+      explanation: "The best plan defines evidence before the trial and controls enough conditions to support a clear conclusion.",
+    },
+    {
+      topic: "Rules and strategy",
+      difficulty: "All-Star",
+      question: `What must a pre-tournament rules audit for ${seed.name} verify?`,
+      answer: "Check the official 2027 rules, national corrections and clarifications, and tournament notices for allowed resources and tools, safety, construction or lab constraints, timing, setup or impound where relevant, scoring, and local modifications.",
+      explanation: "Rule-specific decisions should come from current official sources; practice material should never invent numerical limits.",
+    },
+  ];
+}
+
 export function buildPracticeTests(seed: PracticeSeed): SciolyTest[] {
   return practiceThemes.map((theme, index) => ({
     testNumber: index + 1,
@@ -118,8 +280,8 @@ export function buildPracticeTests(seed: PracticeSeed): SciolyTest[] {
     format: theme.format,
     difficulty: theme.difficulty,
     durationMinutes: theme.durationMinutes,
-    description: `${theme.focus[0].toUpperCase()}${theme.focus.slice(1)} across the published 2027 ${seed.name} scope.`,
+    description: `${index < 3 ? `Multiple-choice practice for ${theme.focus}` : `${theme.focus[0].toUpperCase()}${theme.focus.slice(1)}`} across the published 2027 ${seed.name} scope.`,
     body: `Original team practice material. Suggested time: ${theme.durationMinutes} minutes. Complete all eight prompts before opening the answer guide. Use the official 2027 rules, corrections, clarifications, and your tournament notices for every rule-specific decision.`,
-    questions: makeQuestions(seed, index),
+    questions: index < 3 ? makeMcqQuestions(seed, index) : makeQuestions(seed, index),
   }));
 }

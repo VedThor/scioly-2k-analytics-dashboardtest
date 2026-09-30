@@ -1,4 +1,4 @@
-import { buildPracticeTests } from "@/lib/practice-sets";
+import { buildPracticeQuestions, buildPracticeTests } from "@/lib/practice-sets";
 
 export type ResourceType = "Notes" | "Video" | "Cheat Sheet" | "Guide" | "Rules" | "Test";
 export type Difficulty = "Rookie" | "Pro" | "All-Star";
@@ -45,6 +45,8 @@ export interface SciolyPracticePrompt {
   points: number;
   prompt: string;
   answer: string;
+  options?: string[];
+  correctOption?: number;
 }
 
 export interface SciolyEventHub {
@@ -102,7 +104,7 @@ function eventHub(seed: EventSeed): SciolyEventHub {
         ? "Loaded"
         : "Building",
     lead: "Event lead not assigned",
-    questions: [],
+    questions: buildPracticeQuestions(seed),
     tests: buildPracticeTests(seed),
   };
 }
