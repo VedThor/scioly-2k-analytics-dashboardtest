@@ -112,6 +112,15 @@ export interface CustomPointCategory {
   isActive: boolean;
 }
 
+export interface PointEvidence {
+  id: string;
+  kind: "file" | "link";
+  name: string;
+  href: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
 export interface GrindPointLog {
   id: number;
   studentId: string;
@@ -127,6 +136,7 @@ export interface GrindPointLog {
   approvedBy?: string;
   notes?: string;
   metadata?: Record<string, unknown>;
+  evidence?: PointEvidence[];
 }
 
 export interface OvrSnapshot {
@@ -203,6 +213,7 @@ export interface PointHistoryRow {
   status: PointLogStatus;
   approvedBy?: string;
   notes?: string;
+  evidence?: PointEvidence[];
 }
 
 export interface EventBreakdown {

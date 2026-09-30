@@ -64,7 +64,7 @@ const pageCandidates: SearchCandidate[] = [
     kind: "page",
     group: "Pages",
     title: "Practice library",
-    subtitle: "Interactive MCQ and free-response tests across the 2027 slate",
+    subtitle: "Original printable sets and interactive tests across the official 2027 slate",
     href: "/practice",
     keywords: ["practice", "questions", "answers", "tests", "quiz", "mcq", "frq", "interactive", "2027", "rookie", "pro", "all star"],
     minimumRole: "viewer",
