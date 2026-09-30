@@ -130,6 +130,7 @@ export interface GrindPointLog {
   quantity?: number;
   customLabel?: string;
   customCategoryId?: number;
+  details?: string;
   status: PointLogStatus;
   submittedAt: string;
   approvedAt?: string;
@@ -209,6 +210,7 @@ export interface PointHistoryRow {
   id: number;
   date: string;
   activity: string;
+  details?: string;
   points: number;
   status: PointLogStatus;
   approvedBy?: string;

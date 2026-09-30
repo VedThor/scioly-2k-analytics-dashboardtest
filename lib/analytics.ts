@@ -163,6 +163,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         id: log.id,
         date: log.submittedAt,
         activity: log.customLabel || activityLabels[log.activityType] || log.activityType,
+        details: log.details,
         points: log.points,
         status: log.status,
         approvedBy: log.approvedBy ? studentById.get(log.approvedBy)?.name : undefined,

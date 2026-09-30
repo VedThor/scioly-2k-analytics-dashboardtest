@@ -135,6 +135,13 @@ function objectValue(value: unknown) {
     : null;
 }
 
+export function pointActivityDetailsFromMetadata(metadata: unknown) {
+  const metadataRecord = objectValue(metadata);
+  if (!metadataRecord || typeof metadataRecord.activityDetails !== "string") return undefined;
+  const details = metadataRecord.activityDetails.trim();
+  return details ? details.slice(0, 500) : undefined;
+}
+
 export function storedPointEvidenceFromMetadata(metadata: unknown): StoredPointEvidence[] {
   const metadataRecord = objectValue(metadata);
   if (!metadataRecord || !Array.isArray(metadataRecord.evidence)) return [];

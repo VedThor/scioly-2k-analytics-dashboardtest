@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
-import { pointEvidenceForClient } from "@/lib/point-evidence";
+import { pointActivityDetailsFromMetadata, pointEvidenceForClient } from "@/lib/point-evidence";
 import type { AnalyticsDataset } from "@/lib/analytics";
 import type {
   ActivityType,
@@ -295,6 +295,7 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
       quantity: optionalNumber(row.quantity),
       customLabel: stringValue(row.custom_label) || undefined,
       customCategoryId: optionalNumber(row.custom_category_id),
+      details: pointActivityDetailsFromMetadata(row.metadata),
       status: pointStatus(row.status),
       submittedAt: stringValue(row.submitted_at, new Date(0).toISOString()),
       approvedAt: stringValue(row.approved_at) || undefined,
