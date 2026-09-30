@@ -43,6 +43,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   const [quantity, setQuantity] = useState(50);
   const [customPoints, setCustomPoints] = useState(75);
   const [customLabel, setCustomLabel] = useState("Custom Practice");
+  const [activityDetails, setActivityDetails] = useState("");
   const [customCategories, setCustomCategories] = useState<CustomPointCategory[]>([]);
   const [customCategoryId, setCustomCategoryId] = useState<number | undefined>();
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
@@ -210,6 +211,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             customPoints,
             customLabel: activityType === "custom_activity" ? customLabel : undefined,
             customCategoryId: activityType === "custom_activity" ? customCategoryId : undefined,
+            activityDetails: activityType === "custom_activity" ? activityDetails.trim() : undefined,
             evidenceFiles: uploadTickets.map((ticket) => ({
               id: ticket.id,
               name: ticket.name,
@@ -228,6 +230,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         setMessage(`${payload.message ?? payload.error ?? "Point log submitted."} View it in your submission history.`);
         setEvidenceFiles([]);
         setEvidenceLink("");
+        setActivityDetails("");
         if (evidenceInputRef.current) evidenceInputRef.current.value = "";
         router.refresh();
       } catch (caught) {
@@ -328,6 +331,19 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
               </label>
             )}
             {categoryLoadError ? <div className="text-xs text-amber-200">{categoryLoadError}</div> : null}
+            <label className="grid gap-2 text-sm font-medium text-zinc-600">
+              What did you do?
+              <textarea
+                value={activityDetails}
+                onChange={(event) => setActivityDetails(event.target.value)}
+                maxLength={500}
+                rows={3}
+                required
+                placeholder="Describe the work so an officer can review it."
+                className="rounded-md border border-court-line bg-court-panel p-3 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-cyan-400"
+              />
+              <span className="text-xs font-normal text-zinc-500">This description appears in the approval queue.</span>
+            </label>
           </>
         ) : null}
 
@@ -402,7 +418,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         <button
           type="button"
           onClick={submit}
-          disabled={isPending || points <= 0}
+          disabled={isPending || points <= 0 || (activityType === "custom_activity" && !activityDetails.trim())}
           className="mt-1 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
         >
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />}
