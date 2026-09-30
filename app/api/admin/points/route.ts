@@ -4,6 +4,7 @@ import { getCurrentDemoUser } from "@/lib/analytics";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs, mockStudents } from "@/lib/seed";
+import { pointEvidenceForClient } from "@/lib/point-evidence";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
 import type { ActivityType } from "@/lib/types";
@@ -16,8 +17,9 @@ function pointRow(
 ) {
   const studentId = String(row.student_id ?? "");
   const activityType = String(row.activity_type ?? "custom_activity") as ActivityType;
+  const id = Number(row.id);
   return {
-    id: Number(row.id),
+    id,
     studentId,
     studentName: studentNames.get(studentId) ?? "Unknown student",
     activityType,
@@ -28,7 +30,8 @@ function pointRow(
     quantity: typeof row.quantity === "number" ? row.quantity : null,
     status: String(row.status ?? "pending"),
     submittedAt: String(row.submitted_at ?? ""),
-    notes: typeof row.notes === "string" ? row.notes : null
+    notes: typeof row.notes === "string" ? row.notes : null,
+    evidence: pointEvidenceForClient(id, row.metadata)
   };
 }
 
@@ -92,14 +95,15 @@ export async function GET(request: Request) {
         quantity: point.quantity ?? null,
         status: point.status,
         submittedAt: point.submittedAt,
-        notes: point.notes ?? null
+        notes: point.notes ?? null,
+        evidence: point.evidence ?? []
       }));
     return NextResponse.json({ ok: true, rows }, { headers: { "cache-control": "private, no-store" } });
   }
 
   let query = supabase
     .from("grind_points")
-    .select("id,student_id,activity_type,custom_label,points,minutes,quantity,status,submitted_at,notes")
+    .select("id,student_id,activity_type,custom_label,points,minutes,quantity,status,submitted_at,notes,metadata")
     .order("submitted_at", { ascending: false })
     .limit(limit);
   if (studentId) query = query.eq("student_id", studentId);
