@@ -7,6 +7,7 @@ import { mockPointLogs } from "@/lib/seed";
 import {
   MAX_POINT_EVIDENCE_FILES,
   MAX_POINT_EVIDENCE_TOTAL_BYTES,
+  evidenceBytesMatchMimeType,
   normalizeGoogleDriveUrl,
   POINT_EVIDENCE_BUCKET,
   validateUploadDescriptor,
@@ -23,6 +24,36 @@ type AdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
 async function removeEvidenceUploads(supabase: AdminClient, files: PointEvidenceUploadDescriptor[]) {
   if (files.length === 0) return;
   await supabase.storage.from(POINT_EVIDENCE_BUCKET).remove(files.map((file) => file.storagePath));
+}
+
+async function readFilePrefix(url: string, maxBytes = 1024) {
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { Range: `bytes=0-${maxBytes - 1}` }
+  });
+  if (!response.ok || !response.body) return null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (length < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      length += value.length;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  const prefix = new Uint8Array(Math.min(length, maxBytes));
+  let offset = 0;
+  for (const chunk of chunks) {
+    const portion = chunk.slice(0, prefix.length - offset);
+    prefix.set(portion, offset);
+    offset += portion.length;
+    if (offset >= prefix.length) break;
+  }
+  return prefix;
 }
 
 async function verifyEvidenceUploads(supabase: AdminClient, studentId: string, files: PointEvidenceUploadDescriptor[]) {
@@ -48,6 +79,14 @@ async function verifyEvidenceUploads(supabase: AdminClient, studentId: string, f
       (storedMimeType && storedMimeType !== file.mimeType)
     ) {
       return `${file.name} did not finish uploading. Please try again.`;
+    }
+    const { data: signed, error: signedError } = await supabase.storage
+      .from(POINT_EVIDENCE_BUCKET)
+      .createSignedUrl(file.storagePath, 60);
+    if (signedError || !signed?.signedUrl) return `${file.name} could not be inspected safely.`;
+    const prefix = await readFilePrefix(signed.signedUrl);
+    if (!prefix || !evidenceBytesMatchMimeType(file.mimeType, prefix)) {
+      return `${file.name} does not match its declared file type.`;
     }
   }
   return null;
