@@ -415,6 +415,46 @@ export interface TestoffDashboardData {
   eventRankings: TestoffEventRanking[];
 }
 
+export interface TestoffRankOnlyResult {
+  id: number;
+  studentId: string;
+  studentName: string;
+  rank: number;
+}
+
+export interface TestoffRankOnlySession {
+  id: number;
+  seasonId: number;
+  eventId: number;
+  name: string;
+  date: string;
+  notes?: string;
+  results: TestoffRankOnlyResult[];
+}
+
+export interface TestoffRankOnlyEntry {
+  rank: number;
+  studentId: string;
+  studentName: string;
+}
+
+export interface TestoffRankOnlyEvent {
+  seasonId: number;
+  seasonName: string;
+  eventId: number;
+  eventName: string;
+  eventCategory: EventCategory;
+  sessions: TestoffRankOnlySession[];
+  rankings: TestoffRankOnlyEntry[];
+}
+
+export interface TestoffRankOnlyDashboardData {
+  configured: boolean;
+  activeSeasonId?: number;
+  seasons: TestoffSeason[];
+  eventRankings: TestoffRankOnlyEvent[];
+}
+
 export interface TestoffAdminData {
   configured: boolean;
   activeSeasonId?: number;
