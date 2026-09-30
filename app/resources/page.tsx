@@ -23,6 +23,7 @@ export default async function ResourcesPage() {
           description="Open any official 2027 Division C event for a focused study path, vetted links, and ten original practice tests. Featured trials are clearly labeled."
           actions={(
             <div className="flex flex-wrap gap-2">
+              <Link href="/flashcards" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Team flashcards</Link>
               <a href="https://www.soinc.org/rules-2027" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">2027 rules ↗</a>
               <a href="https://www.soinc.org/events/rules-corrections" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Corrections ↗</a>
               {roleMeets(currentUser.role, "officer") ? (
