@@ -289,6 +289,10 @@ export function AppShell({
           <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
           Sign out
         </button>
+        <div className="mt-2 flex items-center gap-4 px-3 text-xs text-zinc-500">
+          <Link href="/privacy" onClick={() => setMenuOpen(false)} className="hover:text-white">Privacy</Link>
+          <Link href="/terms" onClick={() => setMenuOpen(false)} className="hover:text-white">Terms</Link>
+        </div>
       </div>
     </div>
   );
