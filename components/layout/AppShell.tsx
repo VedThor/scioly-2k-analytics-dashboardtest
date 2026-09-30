@@ -12,6 +12,7 @@ import {
   GraduationCap,
   History,
   LayoutDashboard,
+  Layers3,
   LogOut,
   Menu,
   MoreHorizontal,
@@ -65,6 +66,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: "/resources", label: "Event resources", icon: BookOpen, role: "viewer" },
       { href: "/practice", label: "Practice library", icon: Target, role: "viewer" },
+      { href: "/flashcards", label: "Team flashcards", icon: Layers3, role: "viewer" },
     ],
   },
   {
