@@ -88,7 +88,10 @@ function linkedResource(
 }
 
 function eventHub(seed: EventSeed): SciolyEventHub {
-  const representedTopics = new Set(seed.resources.map((resource) => resource.topic));
+  const resources = seed.category === "Build"
+    ? seed.resources.filter((resource) => resource.type !== "Guide")
+    : seed.resources;
+  const representedTopics = new Set(resources.map((resource) => resource.topic));
   const coveredTopics = seed.topics.filter((topic) => representedTopics.has(topic)).length;
   const coverageRatio = coveredTopics / Math.max(1, seed.topics.length);
   return {
@@ -98,14 +101,15 @@ function eventHub(seed: EventSeed): SciolyEventHub {
     // This is derived from named topics that have at least one vetted resource,
     // rather than an arbitrary event rating.
     coverageScore: Math.round(coverageRatio * 100),
-    readiness: seed.resources.length === 0
+    readiness: resources.length === 0
       ? "Needs Uploads"
-      : coverageRatio >= 0.75 && seed.resources.length >= 4
+      : coverageRatio >= 0.75 && resources.length >= 4
         ? "Loaded"
         : "Building",
     lead: "Event lead not assigned",
+    resources,
     questions: buildPracticeQuestions(seed),
-    tests: buildPracticeTests(seed),
+    tests: seed.category === "Build" ? [] : buildPracticeTests(seed),
   };
 }
 
