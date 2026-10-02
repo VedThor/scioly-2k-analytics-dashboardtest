@@ -30,6 +30,21 @@ export default async function PracticeSetPage({
 
   const totalPoints = test.questions.reduce((sum, question) => sum + question.points, 0);
   const nextNumber = selectedNumber === 10 ? 1 : selectedNumber + 1;
+  const answerGuide = (
+    <div className="space-y-4 border-t border-court-line p-4 sm:p-6 print:border-zinc-300">
+      {test.questions.map((question) => (
+        <article key={question.number} className="break-inside-avoid rounded-md border border-court-line bg-court-elevated p-4 print:border-zinc-300 print:bg-white">
+          <div className="text-sm font-semibold text-cyan-300 print:text-black">Question {question.number} · {question.points} points</div>
+          {question.options?.length && question.correctOption !== undefined ? (
+            <p className="mt-2 font-semibold text-white print:text-black">
+              Correct answer: {String.fromCharCode(65 + question.correctOption)}. {question.options[question.correctOption]}
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm leading-6 text-zinc-500 print:text-black">{question.answer}</p>
+        </article>
+      ))}
+    </div>
+  );
 
   return (
     <AppShell currentUser={currentUser}>
@@ -101,22 +116,15 @@ export default async function PracticeSetPage({
           </ol>
         </section>
 
-        <details className="rounded-md border border-court-line bg-court-panel print:break-before-page print:border-zinc-400 print:bg-white" open={false}>
-          <summary className="cursor-pointer px-4 py-4 font-semibold text-white print:text-black">Answer and scoring guide</summary>
-          <div className="space-y-4 border-t border-court-line p-4 sm:p-6 print:border-zinc-300">
-            {test.questions.map((question) => (
-              <article key={question.number} className="break-inside-avoid rounded-md border border-court-line bg-court-elevated p-4 print:border-zinc-300 print:bg-white">
-                <div className="text-sm font-semibold text-cyan-300 print:text-black">Question {question.number} · {question.points} points</div>
-                {question.options?.length && question.correctOption !== undefined ? (
-                  <p className="mt-2 font-semibold text-white print:text-black">
-                    Correct answer: {String.fromCharCode(65 + question.correctOption)}. {question.options[question.correctOption]}
-                  </p>
-                ) : null}
-                <p className="mt-2 text-sm leading-6 text-zinc-500 print:text-black">{question.answer}</p>
-              </article>
-            ))}
-          </div>
+        <details className="rounded-md border border-court-line bg-court-panel print:hidden">
+          <summary className="cursor-pointer px-4 py-4 font-semibold text-white">Answer and scoring guide</summary>
+          {answerGuide}
         </details>
+
+        <section className="hidden break-before-page rounded-md border border-zinc-400 bg-white print:block">
+          <h2 className="px-4 py-4 text-xl font-semibold text-black">Answer and scoring guide</h2>
+          {answerGuide}
+        </section>
       </div>
     </AppShell>
   );

@@ -21,9 +21,90 @@ export const dynamic = "force-dynamic";
 
 type AdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
 
-async function removeEvidenceUploads(supabase: AdminClient, files: PointEvidenceUploadDescriptor[]) {
+interface EvidenceTicketRow {
+  id: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number | string;
+}
+
+async function claimEvidenceTickets(
+  supabase: AdminClient,
+  studentId: string,
+  files: PointEvidenceUploadDescriptor[]
+) {
+  if (files.length === 0) return { claimId: null };
+  const claimId = crypto.randomUUID();
+  const { data, error } = await supabase
+    .from("point_evidence_upload_tickets")
+    .update({ status: "attaching", claim_id: claimId, claimed_at: new Date().toISOString() })
+    .eq("student_id", studentId)
+    .eq("status", "reserved")
+    .is("claim_id", null)
+    .in("storage_path", files.map((file) => file.storagePath))
+    .select("id,storage_path,original_name,mime_type,size_bytes");
+
+  const rows = (data ?? []) as EvidenceTicketRow[];
+  const ticketsMatch = !error && rows.length === files.length && files.every((file) => rows.some((ticket) => (
+    ticket.id === file.id &&
+    ticket.storage_path === file.storagePath &&
+    ticket.original_name === file.name &&
+    ticket.mime_type === file.mimeType &&
+    Number(ticket.size_bytes) === file.sizeBytes
+  )));
+  if (ticketsMatch) return { claimId };
+
+  await supabase
+    .from("point_evidence_upload_tickets")
+    .update({ status: "reserved", claim_id: null, claimed_at: null })
+    .eq("student_id", studentId)
+    .eq("claim_id", claimId);
+  return { claimId: null, error: "Evidence upload tickets expired or were already used. Remove the files and attach them again." };
+}
+
+async function finalizeEvidenceTickets(
+  supabase: AdminClient,
+  studentId: string,
+  files: PointEvidenceUploadDescriptor[],
+  claimId: string | null
+) {
+  if (files.length === 0) return true;
+  if (!claimId) return false;
+  const { data, error } = await supabase
+    .from("point_evidence_upload_tickets")
+    .update({
+      status: "attached",
+      claim_id: null,
+      claimed_at: null,
+      attached_at: new Date().toISOString()
+    })
+    .eq("student_id", studentId)
+    .eq("status", "attaching")
+    .eq("claim_id", claimId)
+    .select("id");
+  return !error && (data?.length ?? 0) === files.length;
+}
+
+async function discardEvidenceUploads(
+  supabase: AdminClient,
+  files: PointEvidenceUploadDescriptor[],
+  claimId?: string | null
+) {
   if (files.length === 0) return;
-  await supabase.storage.from(POINT_EVIDENCE_BUCKET).remove(files.map((file) => file.storagePath));
+  const paths = files.map((file) => file.storagePath);
+  const { error: storageError } = await supabase.storage.from(POINT_EVIDENCE_BUCKET).remove(paths);
+  let ticketUpdate = supabase
+    .from("point_evidence_upload_tickets")
+    .update({
+      status: storageError ? "cleanup_pending" : "deleted",
+      claim_id: null,
+      claimed_at: null,
+      deleted_at: storageError ? null : new Date().toISOString()
+    })
+    .in("storage_path", paths);
+  if (claimId) ticketUpdate = ticketUpdate.eq("claim_id", claimId);
+  await ticketUpdate;
 }
 
 async function readFilePrefix(url: string, maxBytes = 1024) {
@@ -254,10 +335,19 @@ export async function POST(request: Request) {
     );
   }
 
+  let evidenceClaimId: string | null = null;
+  if (supabase && validatedEvidenceFiles.length > 0) {
+    const ticketClaim = await claimEvidenceTickets(supabase, studentId, validatedEvidenceFiles);
+    if (ticketClaim.error) {
+      return NextResponse.json({ ok: false, error: ticketClaim.error }, { status: 409 });
+    }
+    evidenceClaimId = ticketClaim.claimId;
+  }
+
   if (supabase) {
     const verificationError = await verifyEvidenceUploads(supabase, studentId, validatedEvidenceFiles);
     if (verificationError) {
-      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
+      await discardEvidenceUploads(supabase, validatedEvidenceFiles, evidenceClaimId);
       return NextResponse.json({ ok: false, error: verificationError }, { status: 400 });
     }
   }
@@ -304,7 +394,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
+      await discardEvidenceUploads(supabase, validatedEvidenceFiles, evidenceClaimId);
       const limitReached = error.message.toLowerCase().includes("daily point log limit");
       return NextResponse.json(
         { ok: false, error: limitReached ? "Daily submission limit reached." : error.message },
@@ -313,6 +403,20 @@ export async function POST(request: Request) {
     }
     acceptedPoints = Number(data?.points ?? points);
     insertedLog = data as Record<string, unknown>;
+    const ticketsFinalized = await finalizeEvidenceTickets(
+      supabase,
+      studentId,
+      validatedEvidenceFiles,
+      evidenceClaimId
+    );
+    if (!ticketsFinalized) {
+      const { error: rollbackError } = await supabase.from("grind_points").delete().eq("id", Number(data?.id));
+      if (!rollbackError) await discardEvidenceUploads(supabase, validatedEvidenceFiles);
+      return NextResponse.json(
+        { ok: false, error: "The submission was cancelled because its evidence records could not be finalized." },
+        { status: 500 }
+      );
+    }
     const { error: auditError } = await supabase.from("audit_logs").insert({
       actor_id: currentUser.id,
       action: "points.submit",
@@ -326,8 +430,8 @@ export async function POST(request: Request) {
       is_reversible: true
     });
     if (auditError) {
-      await supabase.from("grind_points").delete().eq("id", Number(data?.id));
-      await removeEvidenceUploads(supabase, validatedEvidenceFiles);
+      const { error: rollbackError } = await supabase.from("grind_points").delete().eq("id", Number(data?.id));
+      if (!rollbackError) await discardEvidenceUploads(supabase, validatedEvidenceFiles);
       return NextResponse.json(
         { ok: false, error: "The submission was rolled back because its undo record could not be saved." },
         { status: 500 }

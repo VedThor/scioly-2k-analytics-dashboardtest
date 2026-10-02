@@ -30,9 +30,16 @@ export async function GET(request: NextRequest) {
   async function redirectAfterSuccessfulAuth() {
     const student = await getAuthenticatedStudent();
     if (student) {
+      const acceptedCurrentPolicies = request.cookies.get(LEGAL_ACCEPTANCE_COOKIE)?.value === LEGAL_VERSION;
+      if (acceptedCurrentPolicies) {
+        const saved = await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+        if (!saved) {
+          await authClient.auth.signOut();
+          return NextResponse.redirect(new URL("/login?error=legal_acceptance_failed", request.url));
+        }
+      }
       const response = NextResponse.redirect(new URL(next, request.url));
-      if (request.cookies.get(LEGAL_ACCEPTANCE_COOKIE)?.value === LEGAL_VERSION) {
-        await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+      if (acceptedCurrentPolicies) {
         response.cookies.delete(LEGAL_ACCEPTANCE_COOKIE);
       }
       return response;

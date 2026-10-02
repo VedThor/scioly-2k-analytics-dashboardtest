@@ -59,7 +59,9 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
         ? "Sign-in could not be completed. Please try again or contact your team administrator."
         : searchParams.get("error") === "account_archived"
           ? "This account has been archived. Ask a team administrator to restore it before signing in."
-          : null
+          : searchParams.get("error") === "legal_acceptance_failed"
+            ? "Your policy acceptance could not be saved. Please sign in and try again."
+            : null
   );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";

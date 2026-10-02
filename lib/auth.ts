@@ -153,6 +153,7 @@ export async function ensureStudentProfile(input: {
   const defaultRole = defaultRoleForEmail(input.email);
   if (existing) {
     const admin = getSupabaseAdmin();
+    const requiresLegalPersistence = Boolean(input.legalAcceptedAt && input.legalVersion);
     const updates: {
       auth_user_id?: string;
       role?: UserRole;
@@ -169,15 +170,17 @@ export async function ensureStudentProfile(input: {
       updates.privacy_acknowledged_at = input.legalAcceptedAt;
       updates.legal_version = input.legalVersion;
     }
-    if (admin && Object.keys(updates).length > 0) {
-      const { data } = await admin
+    if (Object.keys(updates).length > 0) {
+      if (!admin) return requiresLegalPersistence ? null : existing;
+      const { data, error } = await admin
         .from("students")
         .update(updates)
         .eq("id", existing.id)
         .eq("is_active", true)
         .select("*")
         .single();
-      if (data) return studentFromRow(data as StudentRow);
+      if (!error && data) return studentFromRow(data as StudentRow);
+      if (requiresLegalPersistence) return null;
     }
     return existing;
   }
@@ -222,7 +225,7 @@ export async function ensureStudentProfile(input: {
 export async function recordLegalAcceptance(studentId: string, acceptedAt: string, legalVersion: string) {
   const admin = getSupabaseAdmin();
   if (!admin) return false;
-  const { error } = await admin
+  const { data, error } = await admin
     .from("students")
     .update({
       terms_accepted_at: acceptedAt,
@@ -230,8 +233,10 @@ export async function recordLegalAcceptance(studentId: string, acceptedAt: strin
       legal_version: legalVersion
     })
     .eq("id", studentId)
-    .eq("is_active", true);
-  return !error;
+    .eq("is_active", true)
+    .select("id")
+    .maybeSingle();
+  return !error && Boolean(data?.id);
 }
 
 export async function getAuthenticatedStudent() {

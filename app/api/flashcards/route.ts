@@ -114,39 +114,23 @@ export async function POST(request: Request) {
     });
   }
 
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count, error: countError } = await supabase
-    .from("flashcard_decks")
-    .select("id", { count: "exact", head: true })
-    .eq("author_id", currentUser.id)
-    .gte("created_at", since);
-  if (countError) return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "Flashcard storage is unavailable." }, { status: 503 });
-  if ((count ?? 0) >= 10) {
-    return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "You can publish up to 10 decks in 24 hours." }, { status: 429 });
-  }
-
-  const { data: deck, error: deckError } = await supabase
-    .from("flashcard_decks")
-    .insert({
-      title: validated.value.title,
-      description: validated.value.description,
-      event_name: validated.value.eventName,
-      author_id: currentUser.id,
-      is_published: true,
-    })
-    .select("id,title,description,event_name,created_at")
-    .single();
-  if (deckError || !deck) {
+  const { data, error } = await supabase.rpc("publish_flashcard_deck", {
+    p_author_id: currentUser.id,
+    p_title: validated.value.title,
+    p_description: validated.value.description,
+    p_event_name: validated.value.eventName,
+    p_cards: validated.value.cards,
+  });
+  if (error) {
+    if (error.message.includes("FLASHCARD_DECK_LIMIT")) {
+      return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "You can publish up to 10 decks in 24 hours." }, { status: 429 });
+    }
     return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "Could not publish this deck. Ask an administrator to apply the latest database schema." }, { status: 503 });
   }
-
-  const { error: cardsError } = await supabase.from("flashcards").insert(
-    validated.value.cards.map((card) => ({ ...card, deck_id: deck.id })),
-  );
-  if (cardsError) {
-    await supabase.from("flashcard_decks").delete().eq("id", deck.id);
-    return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "The deck was not published because its cards could not be saved." }, { status: 500 });
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "Flashcard storage returned an invalid response." }, { status: 503 });
   }
+  const deck = data as Record<string, unknown>;
 
   return NextResponse.json<FlashcardMutationResponse>({
     ok: true,
@@ -155,7 +139,7 @@ export async function POST(request: Request) {
       id: String(deck.id),
       title: String(deck.title),
       description: String(deck.description ?? ""),
-      eventName: String(deck.event_name),
+      eventName: String(deck.eventName),
       authorName: currentUser.name,
       cardCount: validated.value.cards.length,
       score: 0,
@@ -164,7 +148,7 @@ export async function POST(request: Request) {
       userVote: 0,
       isOwner: true,
       canModerate: true,
-      createdAt: String(deck.created_at),
+      createdAt: String(deck.createdAt),
     },
   });
 }

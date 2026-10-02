@@ -29,6 +29,11 @@ interface VoteRow {
   value: number;
 }
 
+interface CardCountRow {
+  deck_id: string;
+  card_count: number | string;
+}
+
 function demoDeck(currentUser: Student): FlashcardDeck {
   const cards = getEventKnowledge("Anatomy and Physiology").slice(0, 8).map((item, position) => ({
     position,
@@ -57,7 +62,7 @@ function summarize(
   row: DeckRow,
   currentUser: Student,
   authors: Map<string, string>,
-  cards: CardRow[],
+  cardCounts: Map<string, number>,
   votes: VoteRow[],
 ): FlashcardDeckSummary {
   const deckVotes = votes.filter((vote) => vote.deck_id === row.id);
@@ -70,7 +75,7 @@ function summarize(
     description: row.description ?? "",
     eventName: row.event_name,
     authorName: authors.get(row.author_id) ?? "Team member",
-    cardCount: cards.filter((card) => card.deck_id === row.id).length,
+    cardCount: cardCounts.get(row.id) ?? 0,
     score: upvotes - downvotes,
     upvotes,
     downvotes,
@@ -84,22 +89,22 @@ function summarize(
 async function supportingRows(deckRows: DeckRow[]) {
   const supabase = getSupabaseAdmin();
   if (!supabase || deckRows.length === 0) {
-    return { cards: [] as CardRow[], votes: [] as VoteRow[], authors: new Map<string, string>() };
+    return { cardCounts: new Map<string, number>(), votes: [] as VoteRow[], authors: new Map<string, string>() };
   }
   const ids = deckRows.map((deck) => deck.id);
   const authorIds = Array.from(new Set(deckRows.map((deck) => deck.author_id)));
-  const [cardResult, voteResult, authorResult] = await Promise.all([
-    supabase.from("flashcards").select("id,deck_id,front,back,position").in("deck_id", ids).order("position"),
+  const [countResult, voteResult, authorResult] = await Promise.all([
+    supabase.rpc("flashcard_deck_card_counts", { p_deck_ids: ids }),
     supabase.from("flashcard_votes").select("deck_id,student_id,value").in("deck_id", ids),
     supabase.from("students").select("id,name").in("id", authorIds),
   ]);
-  if (cardResult.error || voteResult.error || authorResult.error) {
-    return { cards: [] as CardRow[], votes: [] as VoteRow[], authors: new Map<string, string>() };
-  }
+  const countRows = countResult.error ? [] : (countResult.data ?? []) as CardCountRow[];
   return {
-    cards: (cardResult.data ?? []) as CardRow[],
-    votes: (voteResult.data ?? []) as VoteRow[],
-    authors: new Map((authorResult.data ?? []).map((author) => [String(author.id), String(author.name)])),
+    cardCounts: new Map(countRows.map((row) => [String(row.deck_id), Number(row.card_count)])),
+    votes: voteResult.error ? [] as VoteRow[] : (voteResult.data ?? []) as VoteRow[],
+    authors: authorResult.error
+      ? new Map<string, string>()
+      : new Map((authorResult.data ?? []).map((author) => [String(author.id), String(author.name)])),
   };
 }
 
@@ -116,7 +121,7 @@ export async function loadFlashcardDecks(currentUser: Student): Promise<Flashcar
   if (error || !data) return [];
   const rows = data as DeckRow[];
   const related = await supportingRows(rows);
-  return rows.map((row) => summarize(row, currentUser, related.authors, related.cards, related.votes));
+  return rows.map((row) => summarize(row, currentUser, related.authors, related.cardCounts, related.votes));
 }
 
 export async function loadFlashcardDeck(deckId: string, currentUser: Student): Promise<FlashcardDeck | null> {
@@ -131,11 +136,15 @@ export async function loadFlashcardDeck(deckId: string, currentUser: Student): P
     .maybeSingle();
   if (error || !data) return null;
   const row = data as DeckRow;
-  const related = await supportingRows([row]);
-  const summary = summarize(row, currentUser, related.authors, related.cards, related.votes);
-  const cards: FlashcardCard[] = related.cards
-    .filter((card) => card.deck_id === row.id)
+  const [related, cardResult] = await Promise.all([
+    supportingRows([row]),
+    supabase.from("flashcards").select("id,deck_id,front,back,position").eq("deck_id", row.id).order("position"),
+  ]);
+  if (cardResult.error) return null;
+  const cards: FlashcardCard[] = ((cardResult.data ?? []) as CardRow[])
     .sort((left, right) => left.position - right.position)
     .map((card) => ({ id: Number(card.id), front: card.front, back: card.back, position: card.position }));
+  related.cardCounts.set(row.id, cards.length);
+  const summary = summarize(row, currentUser, related.authors, related.cardCounts, related.votes);
   return { ...summary, cards };
 }

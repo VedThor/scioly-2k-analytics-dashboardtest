@@ -19,7 +19,7 @@ export default async function PracticePage() {
         <PageHeader
           label="Preparation"
           title="Practice library"
-          description="Filter the full official 2027 slate and open ten original, printable practice tests for every scored event and featured trial. Officer-published interactive tests remain available alongside them."
+          description="Filter the full official 2027 slate and open ten original, printable practice tests for every non-build scored event and featured trial. Officer-published interactive tests remain available alongside them."
           actions={canManage ? (
             <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
               Manage practice library

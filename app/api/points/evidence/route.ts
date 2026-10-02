@@ -79,33 +79,52 @@ export async function POST(request: Request) {
   }
 
   const batchId = crypto.randomUUID();
-  const uploads = [];
-  for (const file of validated.files) {
+  const uploadDescriptors = validated.files.map((file) => {
     const id = crypto.randomUUID();
     const storagePath = `${auth.currentUser.id}/${batchId}/${id}${evidenceStorageExtension(file.mimeType)}`;
+    return { id, ...file, storagePath };
+  });
+
+  const { error: reservationError } = await auth.supabase.rpc("reserve_point_evidence_uploads", {
+    p_student_id: auth.currentUser.id,
+    p_batch_id: batchId,
+    p_uploads: uploadDescriptors
+  });
+  if (reservationError) {
+    const limitReached = reservationError.message.includes("POINT_EVIDENCE_UPLOAD_LIMIT");
+    return NextResponse.json(
+      {
+        ok: false,
+        error: limitReached
+          ? "Evidence upload limit reached. You can request up to 50 files or 500 MB of upload tickets in 24 hours."
+          : "Evidence storage is unavailable. Ask an administrator to apply the latest Supabase schema."
+      },
+      { status: limitReached ? 429 : 503 }
+    );
+  }
+
+  const signedUploads = await Promise.all(uploadDescriptors.map(async (upload) => {
     const { data, error } = await auth.supabase.storage
       .from(POINT_EVIDENCE_BUCKET)
-      .createSignedUploadUrl(storagePath, { upsert: false });
+      .createSignedUploadUrl(upload.storagePath, { upsert: false });
+    return error || !data?.token ? null : { ...upload, token: data.token };
+  }));
 
-    if (error || !data?.token) {
-      return NextResponse.json(
-        { ok: false, error: "Evidence storage is unavailable. Ask an administrator to apply the latest Supabase schema." },
-        { status: 503 }
-      );
-    }
-
-    uploads.push({
-      id,
-      name: file.name,
-      mimeType: file.mimeType,
-      sizeBytes: file.sizeBytes,
-      storagePath,
-      token: data.token
-    });
+  if (signedUploads.some((upload) => !upload)) {
+    await auth.supabase
+      .from("point_evidence_upload_tickets")
+      .update({ status: "expired", deleted_at: new Date().toISOString() })
+      .eq("student_id", auth.currentUser.id)
+      .eq("batch_id", batchId)
+      .eq("status", "reserved");
+    return NextResponse.json(
+      { ok: false, error: "Evidence storage is unavailable. Please try again." },
+      { status: 503 }
+    );
   }
 
   return NextResponse.json(
-    { ok: true, bucket: POINT_EVIDENCE_BUCKET, uploads },
+    { ok: true, bucket: POINT_EVIDENCE_BUCKET, uploads: signedUploads },
     { headers: { "cache-control": "private, no-store" } }
   );
 }
@@ -116,22 +135,57 @@ export async function DELETE(request: Request) {
 
   const body = (await request.json().catch(() => null)) as { paths?: unknown } | null;
   const paths = Array.isArray(body?.paths)
-    ? body.paths.filter((path): path is string => typeof path === "string" && path.startsWith(`${auth.currentUser.id}/`)).slice(0, MAX_POINT_EVIDENCE_FILES)
+    ? Array.from(new Set(body.paths.filter((path): path is string => typeof path === "string" && path.startsWith(`${auth.currentUser.id}/`)))).slice(0, MAX_POINT_EVIDENCE_FILES)
     : [];
   if (paths.length === 0) {
     return NextResponse.json({ ok: false, error: "No evidence uploads were provided." }, { status: 400 });
+  }
+
+  const deleteClaimId = crypto.randomUUID();
+  const { data: claimedTickets, error: claimError } = await auth.supabase
+    .from("point_evidence_upload_tickets")
+    .update({ status: "cleanup_pending", claim_id: deleteClaimId, claimed_at: new Date().toISOString() })
+    .eq("student_id", auth.currentUser.id)
+    .in("storage_path", paths)
+    .in("status", ["reserved", "expired"])
+    .select("storage_path");
+  if (claimError) {
+    return NextResponse.json({ ok: false, error: "Evidence cleanup is unavailable." }, { status: 503 });
+  }
+  if ((claimedTickets?.length ?? 0) !== paths.length) {
+    await auth.supabase
+      .from("point_evidence_upload_tickets")
+      .update({ status: "reserved", claim_id: null, claimed_at: null })
+      .eq("student_id", auth.currentUser.id)
+      .eq("claim_id", deleteClaimId);
+    return NextResponse.json(
+      { ok: false, error: "One or more uploads are already attached, in use, or expired." },
+      { status: 409 }
+    );
   }
 
   const { data: pointRows, error: pointError } = await auth.supabase
     .from("grind_points")
     .select("metadata")
     .eq("student_id", auth.currentUser.id);
-  if (pointError) return NextResponse.json({ ok: false, error: pointError.message }, { status: 500 });
+  if (pointError) {
+    await auth.supabase
+      .from("point_evidence_upload_tickets")
+      .update({ status: "reserved", claim_id: null, claimed_at: null })
+      .eq("student_id", auth.currentUser.id)
+      .eq("claim_id", deleteClaimId);
+    return NextResponse.json({ ok: false, error: pointError.message }, { status: 500 });
+  }
   const attachedPaths = new Set(
     (pointRows ?? []).flatMap((row) => storedPointEvidenceFromMetadata(row.metadata))
       .flatMap((entry) => entry.kind === "file" ? [entry.storagePath] : [])
   );
   if (paths.some((path) => attachedPaths.has(path))) {
+    await auth.supabase
+      .from("point_evidence_upload_tickets")
+      .update({ status: "attached", claim_id: null, claimed_at: null, attached_at: new Date().toISOString() })
+      .eq("student_id", auth.currentUser.id)
+      .eq("claim_id", deleteClaimId);
     return NextResponse.json(
       { ok: false, error: "Evidence that is already attached to a point submission cannot be removed as a staged upload." },
       { status: 409 }
@@ -139,6 +193,26 @@ export async function DELETE(request: Request) {
   }
 
   const { error } = await auth.supabase.storage.from(POINT_EVIDENCE_BUCKET).remove(paths);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) {
+    await auth.supabase
+      .from("point_evidence_upload_tickets")
+      .update({ status: "cleanup_pending", claim_id: null, claimed_at: null })
+      .eq("student_id", auth.currentUser.id)
+      .eq("claim_id", deleteClaimId);
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+  const { error: ticketError } = await auth.supabase
+    .from("point_evidence_upload_tickets")
+    .update({
+      status: "deleted",
+      claim_id: null,
+      claimed_at: null,
+      deleted_at: new Date().toISOString()
+    })
+    .eq("student_id", auth.currentUser.id)
+    .eq("claim_id", deleteClaimId);
+  if (ticketError) {
+    return NextResponse.json({ ok: false, error: "The uploads were removed, but their cleanup records could not be updated." }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

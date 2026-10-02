@@ -20,7 +20,7 @@ export default async function ResourcesPage() {
         <PageHeader
           label="Preparation"
           title="Event resources"
-          description="Open any official 2027 Division C event for a focused study path, vetted links, and ten original practice tests. Featured trials are clearly labeled."
+          description="Open any official 2027 Division C event for a focused study path and vetted links. Every non-build event also includes ten original practice tests, and featured trials are clearly labeled."
           actions={(
             <div className="flex flex-wrap gap-2">
               <Link href="/flashcards" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Team flashcards</Link>

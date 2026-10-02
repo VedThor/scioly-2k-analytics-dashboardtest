@@ -4,7 +4,11 @@ import { getCurrentDemoUser } from "@/lib/analytics";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs, mockStudents } from "@/lib/seed";
-import { pointActivityDetailsFromMetadata, pointEvidenceForClient } from "@/lib/point-evidence";
+import {
+  pointActivityDetailsFromMetadata,
+  pointEvidenceForClient,
+  storedPointEvidenceFromMetadata
+} from "@/lib/point-evidence";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
 import type { ActivityType } from "@/lib/types";
@@ -302,6 +306,12 @@ export async function PATCH(request: Request) {
       if (!student || !existing) {
         return NextResponse.json({ ok: false, error: "Point log or student not found." }, { status: 404 });
       }
+      if (existing.studentId !== studentId && (existing.evidence?.length ?? 0) > 0) {
+        return NextResponse.json(
+          { ok: false, error: "Submissions with evidence cannot be reassigned. Create a new point log for the other member." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({
         ok: true,
         persisted: false,
@@ -335,6 +345,15 @@ export async function PATCH(request: Request) {
     }
     if (!student) {
       return NextResponse.json({ ok: false, error: "Student not found." }, { status: 404 });
+    }
+    if (
+      String(before.student_id) !== studentId &&
+      storedPointEvidenceFromMetadata(before.metadata).length > 0
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Submissions with evidence cannot be reassigned. Create a new point log for the other member." },
+        { status: 409 }
+      );
     }
     if (student.is_active === false && String(before.student_id) !== studentId) {
       return NextResponse.json({ ok: false, error: "Restore this person before moving a point log to them." }, { status: 409 });

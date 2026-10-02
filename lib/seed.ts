@@ -35,7 +35,7 @@ export const mockEvents: EventDefinition[] = [
   { id: 17, name: "Forensics", category: "study" },
   { id: 18, name: "Hovercraft", category: "build" },
   { id: 19, name: "Protein Modeling", category: "study" },
-  { id: 20, name: "Thermodynamics", category: "build" },
+  { id: 20, name: "Thermodynamics", category: "study" },
   { id: 21, name: "Mission Possible", category: "build" },
   { id: 22, name: "Engineering CAD", category: "build" },
   { id: 23, name: "Ping-Pong Parachute", category: "build" }

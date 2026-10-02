@@ -58,7 +58,14 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
-  await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+  const acceptanceSaved = await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+  if (!acceptanceSaved) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      { ok: false, error: "Your policy acceptance could not be saved. Please try again." },
+      { status: 503 }
+    );
+  }
 
   return NextResponse.json({
     ok: true,

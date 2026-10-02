@@ -20,7 +20,10 @@ export function FlashcardStudy({ deck }: { deck: FlashcardDeck }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLElement && event.target.matches("input, textarea, select, button")) return;
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest("input, textarea, select, button, a, [contenteditable='true']")
+      ) return;
       if (event.key === "ArrowLeft") move(-1);
       if (event.key === "ArrowRight") move(1);
       if (event.key === " " || event.key === "Enter") {
